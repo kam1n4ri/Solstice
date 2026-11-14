@@ -1,22 +1,22 @@
 # Solstice — Master Project Blueprint & Progress Tracker
 
-> **Vision**: An open-source, all-in-one productivity and creativity suite (Docs, Sheets, Whiteboard, PDF, Photo) powered by local AI. Built in high-performance **native Rust (`wgpu` + `egui`)** leveraging the Storytold ArtCraft engines, with pale, low-opacity, light-valued pastel aesthetics.
+> **Vision**: An open-source, all-in-one productivity and creativity suite (Docs, Sheets, Whiteboard, PDF, Photo) powered by local AI. Built on **Tauri v2 (Native Rust Backend + Sleek React/Tailwind Frontend)** with Storytold ArtCraft engines and pale, low-opacity, light-valued pastel aesthetics.
 
 ---
 
-## 🚀 Native Rust Pivot & Architecture Evolution (November 2026)
+## 🚀 Architecture Evolution: Tauri v2 + Native Rust Backend (November 2026)
 
-- [x] **Step 1: Native Rust Toolchain & Environment**
-  - [x] Installed `rustc 1.100.0` and `cargo 1.100.0` via `rustup` on CachyOS
-  - [x] Verified native Vulkan, Wayland, and X11 graphics libraries
-  - [x] Created permanent `electron-legacy` snapshot branch in Git
-- [x] **Step 2: Electron Code Archive**
-  - [x] Safely moved existing Electron+React codebase into `archive/electron/`
-  - [x] Cleaned workspace root for Cargo Workspace
-- [x] **Step 3: Cargo Workspace & Solstice Theme**
-  - [x] Established root `Cargo.toml` workspace monorepo
-  - [x] Built `crates/solstice-theme` implementing strict pale, light-valued pastel colors (`colors.rs`, `visuals.rs`, `widgets.rs`)
-  - [x] Built and compiled `apps/solstice-launcher` test harness (compiles in ~1.14s)
+- [x] **Step 1: Tauri v2 Project Setup & Frontend Integration**
+  - [x] Restored complete React, Tailwind, and Vite frontend from archive
+  - [x] Installed `@tauri-apps/api@2` and `@tauri-apps/cli@2`
+  - [x] Established `src-tauri/` (Tauri v2 + Serde + WebKitGTK)
+  - [x] Verified full production bundle build (`npm run build:renderer` in 19s)
+- [x] **Step 2: Native IPC Bridge (Electron ➔ Tauri)**
+  - [x] Created `src/renderer/lib/tauriBridge.ts` implementing `window.solsticeAPI` via native `invoke()`
+  - [x] Implemented Rust commands in `src-tauri/src/commands.rs` (`open_tool_window`, `get_active_tools`, `get_app_version`, `photo_open_file`, etc.)
+  - [x] Compiled native desktop binary `target/debug/solstice-native` in pure Rust with code 0
+- [ ] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
+- [ ] **Step 4: Solstice Photo Native Engine Integration (ArtCraft + Local ONNX Cutout)**
 
 ---
 
