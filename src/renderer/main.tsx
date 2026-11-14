@@ -14,6 +14,10 @@ if (typeof process !== 'undefined' && process.release?.name === 'node') {
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { initTauriBridge } from './lib/tauriBridge';
+
+// Initialize the native Tauri bridge for window.solsticeAPI
+initTauriBridge();
 
 // Apply saved theme preferences on boot
 const savedTheme = localStorage.getItem('solstice-theme');

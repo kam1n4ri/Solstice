@@ -1,0 +1,130 @@
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WindowOpenResult {
+    pub success: bool,
+    #[serde(rename = "toolId")]
+    pub tool_id: String,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    "0.1.0-native".to_string()
+}
+
+#[tauri::command]
+pub fn get_active_tools(app: AppHandle) -> Vec<String> {
+    app.webview_windows()
+        .keys()
+        .filter_map(|key| {
+            if key.starts_with("tool-") {
+                Some(key.trim_start_matches("tool-").to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn open_tool_window(
+    app: AppHandle,
+    tool_id: String,
+    initial_path: Option<String>,
+) -> Result<WindowOpenResult, String> {
+    let win_label = format!("tool-{}", tool_id);
+
+    // If window already exists, focus it
+    if let Some(existing_window) = app.get_webview_window(&win_label) {
+        let _ = existing_window.unminimize();
+        let _ = existing_window.set_focus();
+        return Ok(WindowOpenResult {
+            success: true,
+            tool_id,
+            error: None,
+        });
+    }
+
+    // Build URL query string
+    let url_str = match initial_path {
+        Some(path) => format!("/?tool={}&file={}", tool_id, urlencoding::encode(&path)),
+        None => format!("/?tool={}", tool_id),
+    };
+
+    let title = format!("Solstice — {}", capitalize(&tool_id));
+
+    let window_res = WebviewWindowBuilder::new(
+        &app,
+        &win_label,
+        WebviewUrl::App(url_str.into()),
+    )
+    .title(&title)
+    .inner_size(1280.0, 840.0)
+    .min_inner_size(900.0, 600.0)
+    .build();
+
+    match window_res {
+        Ok(_) => Ok(WindowOpenResult {
+            success: true,
+            tool_id,
+            error: None,
+        }),
+        Err(e) => Ok(WindowOpenResult {
+            success: false,
+            tool_id,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+#[tauri::command]
+pub fn get_recent_files() -> Vec<Value> {
+    vec![]
+}
+
+#[tauri::command]
+pub fn get_installed_fonts() -> Vec<Value> {
+    vec![]
+}
+
+#[tauri::command]
+pub fn photo_get_directory() -> String {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    format!("{}/Documents/Solstice/Photos", home)
+}
+
+#[tauri::command]
+pub fn photo_open_file(requested_path: Option<String>) -> Result<Value, String> {
+    Ok(json!({
+        "success": true,
+        "filePath": requested_path,
+        "canceled": false
+    }))
+}
+
+#[tauri::command]
+pub fn photo_save_file(payload: Value) -> Result<Value, String> {
+    Ok(json!({
+        "success": true,
+        "payload": payload
+    }))
+}
+
+#[tauri::command]
+pub fn photo_export_file(payload: Value) -> Result<Value, String> {
+    Ok(json!({
+        "success": true,
+        "payload": payload
+    }))
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
