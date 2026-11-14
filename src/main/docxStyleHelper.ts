@@ -1,0 +1,87 @@
+import fs from 'fs';
+import { AlignmentType, ImageRun } from 'docx';
+
+export type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
+
+export function clean(s: string): string {
+  return s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+export function parseColor(str?: string): string | undefined {
+  if (!str) return undefined;
+  const hex = str.trim().match(/^#([0-9a-fA-F]{3,8})$/);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    return h.slice(0, 6).toUpperCase();
+  }
+  const rgb = str.match(/^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgb) {
+    const r = Math.min(255, Math.max(0, parseInt(rgb[1], 10)));
+    const g = Math.min(255, Math.max(0, parseInt(rgb[2], 10)));
+    const b = Math.min(255, Math.max(0, parseInt(rgb[3], 10)));
+    return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+  }
+  return undefined;
+}
+
+export function parseFontSize(str?: string): number | undefined {
+  if (!str) return undefined;
+  const match = str.trim().match(/^(\d+(?:\.\d+)?)(px|pt|em|rem)?$/i);
+  if (!match) return undefined;
+  const val = parseFloat(match[1]);
+  const unit = (match[2] || 'px').toLowerCase();
+  if (unit === 'pt') return Math.round(val * 2);
+  if (unit === 'em' || unit === 'rem') return Math.round(val * 24);
+  return Math.round(val * 1.5);
+}
+
+export function getAlignment(tagHtml: string): Alignment | undefined {
+  const l = tagHtml.toLowerCase();
+  if (l.includes('text-align: center') || l.includes('has-text-align-center') || l.includes('align="center"')) {
+    return AlignmentType.CENTER;
+  }
+  if (l.includes('text-align: right') || l.includes('has-text-align-right') || l.includes('align="right"')) {
+    return AlignmentType.RIGHT;
+  }
+  if (l.includes('text-align: justify') || l.includes('has-text-align-justify') || l.includes('align="justify"')) {
+    return AlignmentType.JUSTIFIED;
+  }
+  if (l.includes('text-align: left') || l.includes('has-text-align-left') || l.includes('align="left"')) {
+    return AlignmentType.LEFT;
+  }
+  return undefined;
+}
+
+export function tryParseImage(src: string): ImageRun | null {
+  try {
+    const isJpg = src.includes('image/jpeg') || src.includes('image/jpg') || /\.jpe?g($|\?)/i.test(src);
+    const type: 'jpg' | 'png' = isJpg ? 'jpg' : 'png';
+    if (src.startsWith('data:image/')) {
+      const commaIdx = src.indexOf(',');
+      if (commaIdx !== -1) {
+        return new ImageRun({
+          type,
+          data: Buffer.from(src.slice(commaIdx + 1), 'base64'),
+          transformation: { width: 400, height: 300 },
+        });
+      }
+    } else if (src.startsWith('file://') || src.startsWith('/')) {
+      const filePath = src.startsWith('file://') ? new URL(src).pathname : src;
+      if (fs.existsSync(filePath)) {
+        return new ImageRun({
+          type,
+          data: fs.readFileSync(filePath),
+          transformation: { width: 400, height: 300 },
+        });
+      }
+    }
+  } catch {}
+  return null;
+}
