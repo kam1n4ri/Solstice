@@ -1,6 +1,24 @@
 # Solstice — Master Project Blueprint & Progress Tracker
 
-> **Vision**: An open-source, all-in-one productivity and creativity suite (Docs, Sheets, Whiteboard, PDF, Video, Audio, Photo) powered by local AI. Modeled after the Adobe Creative Cloud desktop dashboard with a strict multi-window OS-level isolation architecture.
+> **Vision**: An open-source, all-in-one productivity and creativity suite (Docs, Sheets, Whiteboard, PDF, Photo) powered by local AI. Built in high-performance **native Rust (`wgpu` + `egui`)** leveraging the Storytold ArtCraft engines, with pale, low-opacity, light-valued pastel aesthetics.
+
+---
+
+## 🚀 Native Rust Pivot & Architecture Evolution (November 2026)
+
+- [x] **Step 1: Native Rust Toolchain & Environment**
+  - [x] Installed `rustc 1.100.0` and `cargo 1.100.0` via `rustup` on CachyOS
+  - [x] Verified native Vulkan, Wayland, and X11 graphics libraries
+  - [x] Created permanent `electron-legacy` snapshot branch in Git
+- [x] **Step 2: Electron Code Archive**
+  - [x] Safely moved existing Electron+React codebase into `archive/electron/`
+  - [x] Cleaned workspace root for Cargo Workspace
+- [x] **Step 3: Cargo Workspace & Solstice Theme**
+  - [x] Established root `Cargo.toml` workspace monorepo
+  - [x] Built `crates/solstice-theme` implementing strict pale, light-valued pastel colors (`colors.rs`, `visuals.rs`, `widgets.rs`)
+  - [x] Built and compiled `apps/solstice-launcher` test harness (compiles in ~1.14s)
+
+---
 
 ---
 
