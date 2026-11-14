@@ -1,0 +1,238 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { PDFDocument } from 'pdf-lib';
+import { pdfjsLib } from '../pdfjsSetup';
+import { OrganizeFile, OrganizePage } from './PdfOrganizeTypes';
+import { PdfOrganizeGrid } from './PdfOrganizeGrid';
+import { PdfOrganizeSidebar } from './PdfOrganizeSidebar';
+
+interface PdfOrganizeViewProps {
+  initialFilePath?: string | null;
+  initialFileName?: string;
+  initialData?: Uint8Array | null;
+  onSuccess: (filePath: string, data: Uint8Array, fileName: string) => void;
+  onCancel: () => void;
+}
+
+const PREFIXES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
+  initialFilePath,
+  initialFileName = 'Document.pdf',
+  initialData,
+  onSuccess,
+  onCancel,
+}) => {
+  const [files, setFiles] = useState<OrganizeFile[]>([]);
+  const [pages, setPages] = useState<OrganizePage[]>([]);
+  const [initialPages, setInitialPages] = useState<OrganizePage[]>([]);
+  const [docProxies, setDocProxies] = useState<Map<string, any>>(new Map());
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load initial document
+  useEffect(() => {
+    if (!initialData || initialData.byteLength === 0) return;
+    const fileId = 'file-0';
+    const prefix = 'A';
+
+    PDFDocument.load(initialData, { ignoreEncryption: true })
+      .then(async (pdfDoc) => {
+        const count = pdfDoc.getPageCount();
+        const initialFile: OrganizeFile = {
+          id: fileId,
+          name: initialFileName,
+          filePath: initialFilePath || undefined,
+          fileData: initialData,
+          pageCount: count,
+          prefix,
+        };
+        setFiles([initialFile]);
+
+        const items: OrganizePage[] = Array.from({ length: count }, (_, i) => ({
+          id: `${fileId}-p-${i}-${Date.now()}`,
+          fileId,
+          fileIndex: 0,
+          originalPageIndex: i,
+          rotation: 0,
+          filePrefix: prefix,
+        }));
+        setPages(items);
+        setInitialPages(items);
+
+        const proxy = await pdfjsLib.getDocument({ data: initialData.slice() }).promise;
+        setDocProxies((prev) => new Map(prev).set(fileId, proxy));
+      })
+      .catch((err) => setError(err.message || 'Failed to inspect document pages'));
+  }, [initialData, initialFileName, initialFilePath]);
+
+  const handleReorderPages = useCallback(
+    (fromIndex: number, toIndex: number, position: 'before' | 'after') => {
+      setPages((prev) => {
+        const copy = [...prev];
+        const [moved] = copy.splice(fromIndex, 1);
+        let insertIndex = toIndex;
+        if (fromIndex < toIndex) {
+          insertIndex = position === 'before' ? toIndex - 1 : toIndex;
+        } else {
+          insertIndex = position === 'after' ? toIndex + 1 : toIndex;
+        }
+        insertIndex = Math.max(0, Math.min(copy.length, insertIndex));
+        copy.splice(insertIndex, 0, moved);
+        return copy;
+      });
+    },
+    []
+  );
+
+  const handleRotatePage = useCallback((index: number, delta: number) => {
+    setPages((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, rotation: (p.rotation + delta + 360) % 360 } : p))
+    );
+  }, []);
+
+  const handleRotateAll = useCallback((delta: number) => {
+    setPages((prev) =>
+      prev.map((p) => ({ ...p, rotation: (p.rotation + delta + 360) % 360 }))
+    );
+  }, []);
+
+  const handleDeletePage = useCallback((index: number) => {
+    setPages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleDuplicatePage = useCallback((index: number) => {
+    setPages((prev) => {
+      const target = prev[index];
+      if (!target) return prev;
+      const copy = [...prev];
+      copy.splice(index + 1, 0, {
+        ...target,
+        id: `${target.fileId}-dup-${Date.now()}-${Math.random()}`,
+      });
+      return copy;
+    });
+  }, []);
+
+  const handleReverseOrder = useCallback(() => {
+    setPages((prev) => [...prev].reverse());
+  }, []);
+
+  const handleResetOrder = useCallback(() => {
+    setPages(initialPages);
+  }, [initialPages]);
+
+  const handleAddFiles = async () => {
+    try {
+      if (!window.solsticeAPI?.pdfSelectFiles || !window.solsticeAPI?.pdfReadFile) return;
+      const res = await window.solsticeAPI.pdfSelectFiles({ multiple: true, title: 'Add PDF to Organize' });
+      if (res.canceled || !res.files.length) return;
+
+      for (const f of res.files) {
+        const readRes = await window.solsticeAPI.pdfReadFile(f.filePath);
+        if (readRes.success && readRes.data) {
+          const bytes = new Uint8Array(readRes.data);
+          const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+          const count = pdfDoc.getPageCount();
+          const fileIndex = files.length;
+          const fileId = `file-${fileIndex}-${Date.now()}`;
+          const prefix = PREFIXES[fileIndex % PREFIXES.length];
+
+          const newFile: OrganizeFile = {
+            id: fileId,
+            name: f.fileName,
+            filePath: f.filePath,
+            fileData: bytes,
+            pageCount: count,
+            prefix,
+          };
+
+          const newPages: OrganizePage[] = Array.from({ length: count }, (_, i) => ({
+            id: `${fileId}-p-${i}-${Date.now()}`,
+            fileId,
+            fileIndex,
+            originalPageIndex: i,
+            rotation: 0,
+            filePrefix: prefix,
+          }));
+
+          const proxy = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+          setDocProxies((prev) => new Map(prev).set(fileId, proxy));
+          setFiles((prev) => [...prev, newFile]);
+          setPages((prev) => [...prev, ...newPages]);
+          setInitialPages((prev) => [...prev, ...newPages]);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add additional PDF file.');
+    }
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setPages((prev) => prev.filter((p) => p.fileId !== fileId));
+  };
+
+  const handleOrganize = async () => {
+    if (pages.length === 0 || !window.solsticeAPI?.pdfOrganize) return;
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const res = await window.solsticeAPI.pdfOrganize({
+        files: files.map((f) => ({ filePath: f.filePath, fileData: Array.from(f.fileData) })),
+        filePath: files[0]?.filePath,
+        fileData: files[0] ? Array.from(files[0].fileData) : undefined,
+        pageActions: pages.map((p) => {
+          const fIdx = files.findIndex((f) => f.id === p.fileId);
+          return {
+            fileIndex: Math.max(0, fIdx),
+            originalPageIndex: p.originalPageIndex,
+            rotationDelta: p.rotation,
+          };
+        }),
+        saveAsCopy: false,
+        defaultName: initialFileName,
+      });
+
+      if (res.success && res.filePath && res.data) {
+        onSuccess(res.filePath, new Uint8Array(res.data), res.fileName || initialFileName);
+      } else if (!res.canceled && res.error) {
+        setError(res.error);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save organized PDF.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 w-full h-full flex overflow-hidden z-20">
+      <PdfOrganizeGrid
+        pages={pages}
+        docProxies={docProxies}
+        onReorderPages={handleReorderPages}
+        onRotatePage={handleRotatePage}
+        onRotateAll={handleRotateAll}
+        onDeletePage={handleDeletePage}
+        onDuplicatePage={handleDuplicatePage}
+        onReverseOrder={handleReverseOrder}
+        onResetOrder={handleResetOrder}
+        onAddFiles={handleAddFiles}
+        fileCount={files.length}
+        isMultiFile={files.length > 1}
+      />
+      <PdfOrganizeSidebar
+        files={files}
+        pages={pages}
+        initialPageCount={initialPages.length}
+        onRemoveFile={handleRemoveFile}
+        onResetAll={handleResetOrder}
+        onOrganize={handleOrganize}
+        onCancel={onCancel}
+        isProcessing={isProcessing}
+        error={error}
+      />
+    </div>
+  );
+};
