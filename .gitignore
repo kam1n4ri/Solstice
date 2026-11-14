@@ -1,5 +1,8 @@
 node_modules/
 dist/
 dist-electron/
+target/
+archive/electron/node_modules/
+archive/electron/dist/
 .DS_Store
 *.log
