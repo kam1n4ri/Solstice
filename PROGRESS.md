@@ -36,7 +36,12 @@
     - [x] Added 4 clean studio preview modes: QuickMask Red (Rubylith), Checkerboard, White Studio Matte, and Black Studio Matte in `PhotoCanvas.tsx`
     - [x] Created `photoMaskStrokeHelper.ts` for clean modular separation of brush strokes and wand selections (< 250 LOC)
     - [x] Wired `photo_refine_cutout` command in Tauri bridge to apply native edge refinement upon commit
-  - [ ] **Step 4D: AI Object Healing & Inpainting**
+  - [x] **Step 4D: AI Object Healing & Inpainting**
+    - [x] Implemented native multi-threaded content-aware inpainting engine in `src-tauri/src/inpaint_engine.rs` across 16 CPU cores with Rayon
+    - [x] Fast iterative boundary synthesis propagating color gradients and texture inward with distance-squared weighting
+    - [x] Exposed `photo_inpaint` command in `src-tauri/src/commands.rs` and wired into `src/renderer/lib/tauriBridge.ts`
+    - [x] Redesigned `PhotoEraseInspector.tsx` with clear 3-mode selector (Object Heal, Alpha Erase, Restore), texture blend radius slider, and soft pale pastel action buttons
+    - [x] Integrated `handleInpaintObject` in `usePhotoCutout.ts` to seamlessly commit healed images into undo/redo history without freezing the UI thread
 
 ---
 
