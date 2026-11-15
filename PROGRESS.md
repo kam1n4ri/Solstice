@@ -15,8 +15,16 @@
   - [x] Created `src/renderer/lib/tauriBridge.ts` implementing `window.solsticeAPI` via native `invoke()`
   - [x] Implemented Rust commands in `src-tauri/src/commands.rs` (`open_tool_window`, `get_active_tools`, `get_app_version`, `photo_open_file`, etc.)
   - [x] Compiled native desktop binary `target/debug/solstice-native` in pure Rust with code 0
-- [ ] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
-- [ ] **Step 4: Solstice Photo Native Engine Integration (ArtCraft + Local ONNX Cutout)**
+- [x] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
+- [ ] **Step 4: Solstice Photo Native Engine Integration**
+  - [x] **Step 4A: Viewport Canvas & Native File I/O**
+    - [x] Created `src-tauri/src/photo_file_ops.rs` with safe isolated working copy protection in `~/Documents/Solstice/Photos`
+    - [x] Integrated native Linux file picker dialogs via Rust `rfd`
+    - [x] Refined the slim 48px tool rail with pale pastel active indicators and logical tool grouping
+    - [x] Verified smooth cursor-centered pan/zoom and canvas dimension HUD
+  - [ ] **Step 4B: Non-Destructive Tone Adjustment Engine** (32-bit floating point pipeline in Rust)
+  - [ ] **Step 4C: Interactive AI Cutout Studio** (Restore & Erase brushes with live mask overlay)
+  - [ ] **Step 4D: AI Object Healing & Inpainting**
 
 ---
 
