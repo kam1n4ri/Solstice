@@ -16,6 +16,7 @@ export interface PhotoExportModalProps {
 
 /**
  * Converts a dataUrl to the requested format and quality with background matte handling.
+ * Uses native Rust 32-bit SIMD tone engine when adjustments are active.
  */
 async function processImageForExport(
   dataUrl: string,
@@ -24,17 +25,34 @@ async function processImageForExport(
   matteColor: string,
   adjustments?: PhotoAdjustments
 ): Promise<string> {
+  let sourceUrl = dataUrl;
+  let nativeApplied = false;
+
+  if (adjustments && Object.values(adjustments).some((v) => v !== 0)) {
+    if (window.solsticeAPI?.photoApplyTone) {
+      try {
+        sourceUrl = await window.solsticeAPI.photoApplyTone({
+          dataUrl,
+          params: adjustments,
+        });
+        nativeApplied = true;
+      } catch (e) {
+        console.warn('Native tone apply fallback to canvas:', e);
+      }
+    }
+  }
+
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.src = dataUrl;
+    img.src = sourceUrl;
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth || 1;
       canvas.height = img.naturalHeight || 1;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        resolve(dataUrl);
+        resolve(sourceUrl);
         return;
       }
 
@@ -43,7 +61,7 @@ async function processImageForExport(
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      if (adjustments) {
+      if (!nativeApplied && adjustments) {
         renderAdjustedImage(ctx, img, 0, 0, canvas.width, canvas.height, adjustments);
       } else {
         ctx.drawImage(img, 0, 0);
@@ -53,7 +71,7 @@ async function processImageForExport(
         format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
       resolve(canvas.toDataURL(mimeType, quality / 100));
     };
-    img.onerror = () => resolve(dataUrl);
+    img.onerror = () => resolve(sourceUrl);
   });
 }
 

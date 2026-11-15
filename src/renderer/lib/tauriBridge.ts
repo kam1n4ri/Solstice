@@ -90,6 +90,14 @@ export function initTauriBridge(): void {
       return await invoke('photo_export_file', { payload });
     },
 
+    photoApplyTone: async (payload) => {
+      return await invoke<string>('photo_apply_tone', {
+        dataUrl: payload.dataUrl,
+        filePath: payload.filePath,
+        params: payload.params,
+      });
+    },
+
     photoGetDirectory: async () => {
       return await invoke('photo_get_directory');
     },

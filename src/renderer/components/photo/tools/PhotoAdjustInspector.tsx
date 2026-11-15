@@ -8,6 +8,9 @@ import {
   Moon,
   CircleDot,
   RotateCcw,
+  Check,
+  Cpu,
+  Loader2,
 } from 'lucide-react';
 import { PhotoAdjustments } from './photoFilterHelper';
 
@@ -15,6 +18,9 @@ interface PhotoAdjustInspectorProps {
   adjustments: PhotoAdjustments;
   onChangeAdjustment: <K extends keyof PhotoAdjustments>(key: K, value: PhotoAdjustments[K]) => void;
   onResetAll: () => void;
+  onApply?: () => void;
+  onCancel?: () => void;
+  isProcessing?: boolean;
 }
 
 interface SliderConfig {
@@ -40,6 +46,9 @@ export const PhotoAdjustInspector: React.FC<PhotoAdjustInspectorProps> = ({
   adjustments,
   onChangeAdjustment,
   onResetAll,
+  onApply,
+  onCancel,
+  isProcessing = false,
 }) => {
   const isAnyModified = Object.values(adjustments).some((v) => v !== 0);
   const rafSliderRef = useRef<number | null>(null);
@@ -53,15 +62,21 @@ export const PhotoAdjustInspector: React.FC<PhotoAdjustInspectorProps> = ({
 
   return (
     <div className="p-4 flex flex-col gap-4 text-xs select-none">
-      {/* Header bar with Reset All */}
+      {/* Header bar with Reset All & SIMD Engine Badge */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-          Tone & Color
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Tone & Color
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100/80 text-stone-500 border border-stone-200/60">
+            <Cpu className="h-2.5 w-2.5 text-stone-400" />
+            32-bit SIMD
+          </span>
+        </div>
         <button
           type="button"
           onClick={onResetAll}
-          disabled={!isAnyModified}
+          disabled={!isAnyModified || isProcessing}
           className={`flex items-center gap-1 text-[11px] font-medium transition-colors cursor-pointer ${
             isAnyModified
               ? 'text-stone-600 hover:text-stone-900'
@@ -70,7 +85,7 @@ export const PhotoAdjustInspector: React.FC<PhotoAdjustInspectorProps> = ({
           title="Reset all adjustments to zero"
         >
           <RotateCcw className="h-3 w-3" />
-          <span>Reset All</span>
+          <span>Reset</span>
         </button>
       </div>
 
@@ -94,7 +109,7 @@ export const PhotoAdjustInspector: React.FC<PhotoAdjustInspectorProps> = ({
                   title="Click to reset"
                   className={`font-mono text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
                     isModified
-                      ? 'bg-stone-200/60 text-slate-800 font-semibold hover:bg-stone-200'
+                      ? 'bg-blue-50/70 text-blue-700 font-semibold border border-blue-200/50 hover:bg-blue-100/70'
                       : 'text-slate-400 hover:text-slate-700'
                   }`}
                 >
@@ -108,13 +123,52 @@ export const PhotoAdjustInspector: React.FC<PhotoAdjustInspectorProps> = ({
                 max={cfg.max}
                 step={cfg.step}
                 value={val}
+                disabled={isProcessing}
                 onChange={(e) => handleSliderChange(cfg.key, parseFloat(e.target.value))}
-                className="w-full accent-stone-700 cursor-pointer h-1.5 bg-stone-200/80 rounded-lg"
+                className="w-full accent-blue-600/80 cursor-pointer h-1.5 bg-stone-200/70 rounded-lg disabled:opacity-50"
               />
             </div>
           );
         })}
       </div>
+
+      {/* Soft Action buttons adhering to pale, light-valued palette */}
+      {onApply && (
+        <div className="pt-3 border-t border-stone-200/60 flex items-center gap-2 mt-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isProcessing}
+              className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-white hover:bg-stone-50 text-stone-600 border border-stone-200/80 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={!isAnyModified || isProcessing}
+            className={`flex-1 h-8 px-3 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              isAnyModified
+                ? 'bg-blue-50/80 hover:bg-blue-100/80 text-blue-700 border border-blue-200/80 shadow-2xs'
+                : 'bg-stone-100/60 text-stone-400 border border-stone-200/60'
+            }`}
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <Check className="h-3.5 w-3.5 text-blue-600" />
+                <span>Apply to Image</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

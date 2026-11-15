@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::photo_file_ops;
+use crate::tone_engine;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowOpenResult {
@@ -152,7 +153,7 @@ pub fn photo_save_file(payload: Value) -> Result<Value, String> {
 
 #[tauri::command]
 pub fn photo_export_file(payload: Value) -> Result<Value, String> {
-    let data_url = payload
+    let raw_data_url = payload
         .get("dataUrl")
         .and_then(|v| v.as_str())
         .ok_or_else(|| "Missing dataUrl in export payload".to_string())?;
@@ -161,7 +162,21 @@ pub fn photo_export_file(payload: Value) -> Result<Value, String> {
         .and_then(|v| v.as_str())
         .unwrap_or("export.png");
 
-    let target_path = photo_file_ops::export_photo_file(data_url, default_name)?;
+    let final_data_url = if let Some(adj_val) = payload.get("adjustments") {
+        if let Ok(params) = serde_json::from_value::<tone_engine::PhotoToneParams>(adj_val.clone()) {
+            if !params.is_identity() {
+                tone_engine::process_data_url(raw_data_url, &params, None)?
+            } else {
+                raw_data_url.to_string()
+            }
+        } else {
+            raw_data_url.to_string()
+        }
+    } else {
+        raw_data_url.to_string()
+    };
+
+    let target_path = photo_file_ops::export_photo_file(&final_data_url, default_name)?;
 
     match target_path {
         Some(path) => Ok(json!({
@@ -174,6 +189,26 @@ pub fn photo_export_file(payload: Value) -> Result<Value, String> {
             "canceled": true
         })),
     }
+}
+
+#[tauri::command]
+pub fn photo_apply_tone(
+    data_url: Option<String>,
+    file_path: Option<String>,
+    params: tone_engine::PhotoToneParams,
+) -> Result<String, String> {
+    if let Some(path_str) = file_path {
+        let path = Path::new(&path_str);
+        if path.exists() {
+            return tone_engine::process_file_to_data_url(path, &params);
+        }
+    }
+
+    if let Some(url) = data_url {
+        return tone_engine::process_data_url(&url, &params, None);
+    }
+
+    Err("Either data_url or file_path must be provided".to_string())
 }
 
 fn capitalize(s: &str) -> String {

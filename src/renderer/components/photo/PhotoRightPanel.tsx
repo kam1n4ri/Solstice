@@ -123,6 +123,9 @@ export const PhotoRightPanel: React.FC<PhotoRightPanelProps> = memo(({
             adjustments={tone.adjustments}
             onChangeAdjustment={tone.handleChangeAdjustment}
             onResetAll={tone.handleResetAllAdjustments}
+            onApply={tone.handleApplyAdjustments}
+            onCancel={tone.handleCancelAdjustments}
+            isProcessing={tone.isApplying}
           />
         ) : activeTool === 'filters' ? (
           <PhotoFiltersInspector

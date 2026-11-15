@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod photo_file_ops;
+pub mod tone_engine;
 
 use commands::*;
 
@@ -17,6 +18,7 @@ pub fn run() {
             photo_open_file,
             photo_save_file,
             photo_export_file,
+            photo_apply_tone,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

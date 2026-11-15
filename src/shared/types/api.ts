@@ -121,7 +121,21 @@ export interface SolsticeAPI {
     defaultName?: string;
     format?: string;
     quality?: number;
+    adjustments?: Record<string, number>;
   }) => Promise<PhotoSaveResult>;
+  photoApplyTone?: (payload: {
+    dataUrl?: string;
+    filePath?: string;
+    params: {
+      brightness: number;
+      contrast: number;
+      saturation: number;
+      warmth: number;
+      highlights: number;
+      shadows: number;
+      vignette: number;
+    };
+  }) => Promise<string>;
   photoGetDirectory?: () => Promise<string>;
   photoDeleteWorkingCopy?: (filePath: string) => Promise<boolean>;
   photoGetThumbnail?: (filePath: string) => Promise<string | null>;

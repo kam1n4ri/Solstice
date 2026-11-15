@@ -80,9 +80,47 @@ export function usePhotoAdjustments({
     }
   }, [storageKey]);
 
-  const handleApplyAdjustments = useCallback(() => {
-    setActiveTool(null);
-  }, [setActiveTool]);
+  const [isApplying, setIsApplying] = useState<boolean>(false);
+
+  const handleApplyAdjustments = useCallback(async () => {
+    const isModified = Object.values(adjustments).some((v) => v !== 0);
+    if (!isModified || !currentImageSrc) {
+      setActiveTool(null);
+      return;
+    }
+
+    try {
+      setIsApplying(true);
+      if (window.solsticeAPI?.photoApplyTone) {
+        const transformedUrl = await window.solsticeAPI.photoApplyTone({
+          dataUrl: currentImageSrc,
+          params: adjustments,
+        });
+        onCommitImage(transformedUrl);
+        setAdjustments(DEFAULT_ADJUSTMENTS);
+        if (storageKey) {
+          localStorage.removeItem(`solstice:adjustments:${storageKey}`);
+        }
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = currentImageSrc;
+        img.onload = () => {
+          const transformedUrl = applyToneAndFilterTransform(img, adjustments);
+          onCommitImage(transformedUrl);
+          setAdjustments(DEFAULT_ADJUSTMENTS);
+          if (storageKey) {
+            localStorage.removeItem(`solstice:adjustments:${storageKey}`);
+          }
+        };
+      }
+    } catch (err) {
+      console.error('Failed to apply native tone adjustments:', err);
+    } finally {
+      setIsApplying(false);
+      setActiveTool(null);
+    }
+  }, [adjustments, currentImageSrc, onCommitImage, setActiveTool, storageKey]);
 
   const handleCancelAdjustments = useCallback(() => {
     setActiveTool(null);
@@ -121,6 +159,7 @@ export function usePhotoAdjustments({
   return {
     // Adjustments
     adjustments,
+    isApplying,
     handleChangeAdjustment,
     handleResetAllAdjustments,
     handleApplyAdjustments,
