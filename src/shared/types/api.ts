@@ -142,6 +142,11 @@ export interface SolsticeAPI {
     choke?: number;
     feather?: number;
   }) => Promise<string>;
+  photoInpaint?: (payload: {
+    imageDataUrl: string;
+    maskDataUrl: string;
+    radius?: number;
+  }) => Promise<string>;
   photoGetDirectory?: () => Promise<string>;
   photoDeleteWorkingCopy?: (filePath: string) => Promise<boolean>;
   photoGetThumbnail?: (filePath: string) => Promise<string | null>;

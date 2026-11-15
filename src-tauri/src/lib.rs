@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod cutout_engine;
+pub mod inpaint_engine;
 pub mod photo_file_ops;
 pub mod tone_engine;
 
@@ -21,6 +22,7 @@ pub fn run() {
             photo_export_file,
             photo_apply_tone,
             photo_refine_cutout,
+            photo_inpaint,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

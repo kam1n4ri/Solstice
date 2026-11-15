@@ -5,6 +5,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::photo_file_ops;
 use crate::tone_engine;
 use crate::cutout_engine;
+use crate::inpaint_engine;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowOpenResult {
@@ -224,6 +225,15 @@ pub fn photo_refine_cutout(
         feather: feather.unwrap_or(0),
     };
     cutout_engine::process_cutout(&image_data_url, &mask_data_url, &params)
+}
+
+#[tauri::command]
+pub fn photo_inpaint(
+    image_data_url: String,
+    mask_data_url: String,
+    radius: Option<u32>,
+) -> Result<String, String> {
+    inpaint_engine::inpaint_image(&image_data_url, &mask_data_url, radius.unwrap_or(8))
 }
 
 fn capitalize(s: &str) -> String {

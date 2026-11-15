@@ -1,6 +1,13 @@
 import React, { useRef } from 'react';
-import { Eraser, Paintbrush, Wand2, RotateCcw } from 'lucide-react';
-import { PhotoInspectorActions } from './PhotoInspectorActions';
+import {
+  Eraser,
+  Paintbrush,
+  Wand2,
+  RotateCcw,
+  Sparkles,
+  Cpu,
+  Loader2,
+} from 'lucide-react';
 
 export type EraseToolMode = 'inpaint' | 'erase' | 'restore';
 
@@ -41,13 +48,20 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
     if (rafInpaintRef.current) cancelAnimationFrame(rafInpaintRef.current);
     rafInpaintRef.current = requestAnimationFrame(() => onChangeInpaintRadius(val));
   };
+
   return (
     <div className="p-4 flex flex-col gap-4 text-xs select-none">
-      {/* Top Header */}
+      {/* Top Header with Engine Badge */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-          Object Erase & Healing
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Healing & Erase
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100/80 text-stone-500 border border-stone-200/60">
+            <Cpu className="h-2.5 w-2.5 text-stone-400" />
+            SIMD Inpaint
+          </span>
+        </div>
         <button
           type="button"
           onClick={onReset}
@@ -62,21 +76,21 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
 
       {/* 3-Way Mode Toggle */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-slate-600">Erase Tool Mode</span>
+        <span className="text-[11px] font-medium text-slate-600">Tool Mode</span>
         <div className="grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={() => onSelectEraseMode('inpaint')}
             disabled={isProcessing}
-            title="Local texture synthesis inpainting for objects & blemishes"
+            title="Content-aware texture inpainting for removing unwanted objects and blemishes"
             className={`py-2 px-1 rounded-xl border text-[11px] font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               eraseMode === 'inpaint'
-                ? 'bg-blue-50/80 text-blue-700 border-blue-200/90 shadow-2xs'
+                ? 'bg-blue-50/80 text-blue-700 border-blue-200/90 shadow-2xs font-semibold'
                 : 'bg-stone-50/60 text-slate-600 border-stone-200/70 hover:bg-stone-100/70'
             }`}
           >
-            <Wand2 className="h-3.5 w-3.5" />
-            <span>Object</span>
+            <Wand2 className="h-3.5 w-3.5 text-blue-600" />
+            <span>Object Heal</span>
           </button>
           <button
             type="button"
@@ -85,12 +99,12 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
             title="Erase painted pixels to transparent background"
             className={`py-2 px-1 rounded-xl border text-[11px] font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               eraseMode === 'erase'
-                ? 'bg-rose-50/80 text-rose-700 border-rose-200/90 shadow-2xs'
+                ? 'bg-rose-50/80 text-rose-700 border-rose-200/90 shadow-2xs font-semibold'
                 : 'bg-stone-50/60 text-slate-600 border-stone-200/70 hover:bg-stone-100/70'
             }`}
           >
-            <Eraser className="h-3.5 w-3.5" />
-            <span>Alpha</span>
+            <Eraser className="h-3.5 w-3.5 text-rose-600" />
+            <span>Alpha Erase</span>
           </button>
           <button
             type="button"
@@ -99,11 +113,11 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
             title="Restore previously masked or erased pixels"
             className={`py-2 px-1 rounded-xl border text-[11px] font-medium flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               eraseMode === 'restore'
-                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/90 shadow-2xs'
+                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/90 shadow-2xs font-semibold'
                 : 'bg-stone-50/60 text-slate-600 border-stone-200/70 hover:bg-stone-100/70'
             }`}
           >
-            <Paintbrush className="h-3.5 w-3.5" />
+            <Paintbrush className="h-3.5 w-3.5 text-emerald-600" />
             <span>Restore</span>
           </button>
         </div>
@@ -113,14 +127,14 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
       <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200/70 text-[11px] leading-relaxed text-slate-600">
         {eraseMode === 'inpaint' && (
           <p>
-            Paint over blemishes, text, or objects. Local inpainting will seamlessly blend them into the surrounding texture.
+            Paint over blemishes, text, or objects. The native 16-core Rust engine will seamlessly blend surrounding texture and gradients into the area.
           </p>
         )}
         {eraseMode === 'erase' && (
           <p>Paint over areas to erase pixels to transparent alpha.</p>
         )}
         {eraseMode === 'restore' && (
-          <p>Paint over erased or masked areas to restore original pixels.</p>
+          <p>Paint over erased areas to restore original pixels.</p>
         )}
       </div>
 
@@ -152,7 +166,7 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
           <input
             type="range"
             min={3}
-            max={16}
+            max={20}
             step={1}
             value={inpaintRadius}
             disabled={isProcessing}
@@ -162,13 +176,35 @@ export const PhotoEraseInspector: React.FC<PhotoEraseInspectorProps> = ({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <PhotoInspectorActions
-        onCancel={onCancel}
-        onApply={onApply}
-        applyLabel={eraseMode === 'inpaint' ? 'Remove' : 'Apply'}
-        isProcessing={isProcessing}
-      />
+      {/* Soft Action Buttons adhering to pale pastel palette */}
+      <div className="pt-3 border-t border-stone-200/60 flex items-center gap-2 mt-auto">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isProcessing}
+          className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-white hover:bg-stone-50 text-stone-600 border border-stone-200/80 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onApply}
+          disabled={isProcessing}
+          className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-blue-50/80 hover:bg-blue-100/80 text-blue-700 border border-blue-200/80 shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+              <span>Healing...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+              <span>{eraseMode === 'inpaint' ? 'Heal Object' : 'Apply Erase'}</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };

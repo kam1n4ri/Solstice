@@ -107,6 +107,14 @@ export function initTauriBridge(): void {
       });
     },
 
+    photoInpaint: async (payload) => {
+      return await invoke<string>('photo_inpaint', {
+        imageDataUrl: payload.imageDataUrl,
+        maskDataUrl: payload.maskDataUrl,
+        radius: payload.radius,
+      });
+    },
+
     photoGetDirectory: async () => {
       return await invoke('photo_get_directory');
     },

@@ -218,27 +218,42 @@ export function usePhotoCutout({
     }
   }, [currentImageSrc, choke, feather, onCommitImage, handleResetMask, setActiveTool]);
 
-  const handleInpaintObject = useCallback(() => {
+  const handleInpaintObject = useCallback(async () => {
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas || !currentImageSrc) return;
-    setIsProcessing(true);
-    setTimeout(() => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = currentImageSrc;
-      img.onload = () => {
-        try {
-          const resultUrl = inpaintObjectRemoval(img, maskCanvas, { radius: inpaintRadius });
-          onCommitImage(resultUrl);
-          handleResetMask();
-        } catch (err) {
-          console.error('Inpaint object removal error:', err);
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-      img.onerror = () => setIsProcessing(false);
-    }, 40);
+
+    try {
+      setIsProcessing(true);
+      setStatusMessage('Healing object in Rust engine...');
+
+      if (window.solsticeAPI?.photoInpaint) {
+        const maskDataUrl = maskCanvas.toDataURL('image/png');
+        const healedUrl = await window.solsticeAPI.photoInpaint({
+          imageDataUrl: currentImageSrc,
+          maskDataUrl,
+          radius: inpaintRadius,
+        });
+        onCommitImage(healedUrl);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = currentImageSrc;
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const resultUrl = inpaintObjectRemoval(img, maskCanvas, { radius: inpaintRadius });
+            onCommitImage(resultUrl);
+            resolve(null);
+          };
+          img.onerror = () => resolve(null);
+        });
+      }
+      handleResetMask();
+    } catch (err) {
+      console.error('Inpaint object removal error:', err);
+    } finally {
+      setIsProcessing(false);
+      setStatusMessage('');
+    }
   }, [currentImageSrc, inpaintRadius, onCommitImage, handleResetMask]);
 
   const handleCancelCutout = useCallback(() => {
