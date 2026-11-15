@@ -29,7 +29,13 @@
     - [x] Exposed `photo_apply_tone` command and wired into `tauriBridge.ts`
     - [x] Integrated "Apply to Image" commit action with 32-bit SIMD badge and soft pale pastel buttons in `PhotoAdjustInspector.tsx`
     - [x] Enhanced `PhotoExportModal` to process high-resolution export files through native Rust engine
-  - [ ] **Step 4C: Interactive AI Cutout Studio** (Restore & Erase brushes with live mask overlay)
+  - [x] **Step 4C: Interactive AI Cutout Studio** (Restore & Erase brushes with live mask overlay)
+    - [x] Created `src-tauri/src/cutout_engine.rs` implementing multi-threaded mask erosion/dilation (choke) and separable box feathering across 16 CPU cores
+    - [x] Upgraded AI pipeline in `photoCutoutAiHelper.ts` to support universal RMBG-1.4 matting with graceful fallback
+    - [x] Redesigned `PhotoCutoutInspector.tsx` with intuitive 3-step workflow: Auto AI Cutout, Magic Wand, Keep/Restore & Erase/Remove brushes, and Edge Choke/Feather sliders
+    - [x] Added 4 clean studio preview modes: QuickMask Red (Rubylith), Checkerboard, White Studio Matte, and Black Studio Matte in `PhotoCanvas.tsx`
+    - [x] Created `photoMaskStrokeHelper.ts` for clean modular separation of brush strokes and wand selections (< 250 LOC)
+    - [x] Wired `photo_refine_cutout` command in Tauri bridge to apply native edge refinement upon commit
   - [ ] **Step 4D: AI Object Healing & Inpainting**
 
 ---
