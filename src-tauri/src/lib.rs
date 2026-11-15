@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod photo_file_ops;
 
 use commands::*;
 

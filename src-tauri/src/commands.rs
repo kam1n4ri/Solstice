@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use crate::photo_file_ops;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowOpenResult {
@@ -92,33 +94,86 @@ pub fn get_installed_fonts() -> Vec<Value> {
 
 #[tauri::command]
 pub fn photo_get_directory() -> String {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    format!("{}/Documents/Solstice/Photos", home)
+    photo_file_ops::get_photo_working_copy_dir()
+        .to_string_lossy()
+        .to_string()
 }
 
 #[tauri::command]
 pub fn photo_open_file(requested_path: Option<String>) -> Result<Value, String> {
+    let source_path: PathBuf = match requested_path {
+        Some(ref p) if !p.trim().is_empty() => PathBuf::from(p),
+        _ => {
+            let dialog = rfd::FileDialog::new()
+                .set_title("Open Photo in Solstice")
+                .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif"]);
+            match dialog.pick_file() {
+                Some(p) => p,
+                None => return Ok(json!({ "success": false, "canceled": true })),
+            }
+        }
+    };
+
+    let working_path = photo_file_ops::ensure_photo_working_copy(&source_path)?;
+    let data_url = photo_file_ops::read_image_to_data_url(&working_path)?;
+    let file_name = working_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("image.png")
+        .to_string();
+
     Ok(json!({
         "success": true,
-        "filePath": requested_path,
+        "filePath": working_path.to_string_lossy(),
+        "fileName": file_name,
+        "dataUrl": data_url,
         "canceled": false
     }))
 }
 
 #[tauri::command]
 pub fn photo_save_file(payload: Value) -> Result<Value, String> {
+    let file_path_str = payload
+        .get("filePath")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing filePath in save payload".to_string())?;
+    let data_url = payload
+        .get("dataUrl")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing dataUrl in save payload".to_string())?;
+
+    photo_file_ops::save_working_copy_data_url(Path::new(file_path_str), data_url)?;
+
     Ok(json!({
         "success": true,
-        "payload": payload
+        "filePath": file_path_str
     }))
 }
 
 #[tauri::command]
 pub fn photo_export_file(payload: Value) -> Result<Value, String> {
-    Ok(json!({
-        "success": true,
-        "payload": payload
-    }))
+    let data_url = payload
+        .get("dataUrl")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Missing dataUrl in export payload".to_string())?;
+    let default_name = payload
+        .get("defaultName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("export.png");
+
+    let target_path = photo_file_ops::export_photo_file(data_url, default_name)?;
+
+    match target_path {
+        Some(path) => Ok(json!({
+            "success": true,
+            "filePath": path.to_string_lossy(),
+            "canceled": false
+        })),
+        None => Ok(json!({
+            "success": false,
+            "canceled": true
+        })),
+    }
 }
 
 fn capitalize(s: &str) -> String {
