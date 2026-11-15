@@ -22,7 +22,13 @@
     - [x] Integrated native Linux file picker dialogs via Rust `rfd`
     - [x] Refined the slim 48px tool rail with pale pastel active indicators and logical tool grouping
     - [x] Verified smooth cursor-centered pan/zoom and canvas dimension HUD
-  - [ ] **Step 4B: Non-Destructive Tone Adjustment Engine** (32-bit floating point pipeline in Rust)
+  - [x] **Step 4B: Non-Destructive Tone Adjustment Engine** (32-bit floating point pipeline in Rust)
+    - [x] Implemented multi-threaded Rayon tone pipeline across 16 CPU cores in `src-tauri/src/tone_engine.rs`
+    - [x] Linear sRGB space pipeline: brightness, highlights & shadows recovery, mid-gray pivot contrast, warmth (Kelvin shift), saturation, and radial vignette falloff
+    - [x] Zero-copy 256-entry `sRGB -> Linear` LUT via `std::sync::OnceLock`
+    - [x] Exposed `photo_apply_tone` command and wired into `tauriBridge.ts`
+    - [x] Integrated "Apply to Image" commit action with 32-bit SIMD badge and soft pale pastel buttons in `PhotoAdjustInspector.tsx`
+    - [x] Enhanced `PhotoExportModal` to process high-resolution export files through native Rust engine
   - [ ] **Step 4C: Interactive AI Cutout Studio** (Restore & Erase brushes with live mask overlay)
   - [ ] **Step 4D: AI Object Healing & Inpainting**
 
