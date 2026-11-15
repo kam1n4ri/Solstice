@@ -2,9 +2,15 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { PhotoToolType } from '@shared/types';
 import { CutoutSubMode, BrushStrokeAction, MaskPreviewMode } from '../tools/PhotoCutoutInspector';
 import { EraseToolMode } from '../tools/PhotoEraseInspector';
-import { autoGenerateEdgeMask, floodSelectMask, applyMaskToImage } from '../tools/photoCutoutHelper';
+import { autoGenerateEdgeMask, applyMaskToImage } from '../tools/photoCutoutHelper';
 import { inpaintObjectRemoval } from '../tools/photoInpaintHelper';
 import { generateCutoutMaskWithAi } from '../tools/photoCutoutAiHelper';
+import {
+  applyStrokeDot,
+  applyStrokeLine,
+  applyWandSelection,
+  invertCanvasAlpha,
+} from '../tools/photoMaskStrokeHelper';
 
 interface UsePhotoCutoutProps {
   dimensions: { width: number; height: number };
@@ -27,6 +33,8 @@ export function usePhotoCutout({
   const [inpaintRadius, setInpaintRadius] = useState<number>(6);
   const [brushSize, setBrushSize] = useState<number>(36);
   const [tolerance, setTolerance] = useState<number>(30);
+  const [choke, setChoke] = useState<number>(0);
+  const [feather, setFeather] = useState<number>(1);
   const [previewMode, setPreviewMode] = useState<MaskPreviewMode>('transparent');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -48,7 +56,6 @@ export function usePhotoCutout({
     }
   }, [activeTool, dimensions.width, dimensions.height]);
 
-  // Fast classical edge-aware flood removal populates the interactive mask
   const handleClassicalAutoRemove = useCallback(() => {
     if (!currentImageSrc || isProcessing) return;
     setIsProcessing(true);
@@ -58,19 +65,19 @@ export function usePhotoCutout({
       img.crossOrigin = 'anonymous';
       img.src = currentImageSrc;
       img.onload = () => {
-        const edgeMaskCanvas = autoGenerateEdgeMask(img, { tolerance, featherRadius: 2 });
+        const edgeMask = autoGenerateEdgeMask(img, { tolerance, featherRadius: 2 });
         if (maskCanvasRef.current) {
           const ctx = maskCanvasRef.current.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, dimensions.width, dimensions.height);
-            ctx.drawImage(edgeMaskCanvas, 0, 0, dimensions.width, dimensions.height);
+            ctx.drawImage(edgeMask, 0, 0, dimensions.width, dimensions.height);
           }
         }
         setMaskVersion((v) => v + 1);
         setSubMode('brush');
         setStrokeAction('restore');
         setIsProcessing(false);
-        setStatusMessage('Mask ready! Use Restore brush on hair/edges or click Apply.');
+        setStatusMessage('Mask ready! Touch up with Keep/Erase brushes or click Apply.');
       };
       img.onerror = () => {
         setIsProcessing(false);
@@ -79,7 +86,6 @@ export function usePhotoCutout({
     }, 40);
   }, [currentImageSrc, isProcessing, tolerance, dimensions]);
 
-  // AI Auto Background Removal: populates mask for live inspection & manual touch-up
   const handleAutoRemove = useCallback(async () => {
     if (!currentImageSrc || isProcessing) return;
     setIsProcessing(true);
@@ -102,14 +108,14 @@ export function usePhotoCutout({
       setSubMode('brush');
       setStrokeAction('restore');
       setIsProcessing(false);
-      setStatusMessage('Mask generated! Use Restore brush on hair/details or click Apply.');
+      setStatusMessage('Cutout ready! Touch up with brushes or click Apply.');
     } catch (err) {
       console.warn('AI matting failed, falling back to edge detection:', err);
       handleClassicalAutoRemove();
     }
   }, [currentImageSrc, isProcessing, dimensions, handleClassicalAutoRemove]);
 
-  const isDrawingStroke = useCallback(() => {
+  const isDrawingErase = useCallback(() => {
     if (activeTool === 'erase') return eraseMode !== 'restore';
     return strokeAction === 'erase';
   }, [activeTool, eraseMode, strokeAction]);
@@ -117,47 +123,24 @@ export function usePhotoCutout({
   const handleStrokeStart = useCallback((x: number, y: number) => {
     const canvas = maskCanvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     lastPointRef.current = { x, y };
-    ctx.save();
-    ctx.globalCompositeOperation = isDrawingStroke() ? 'source-over' : 'destination-out';
-    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    applyStrokeDot(canvas, x, y, brushSize, isDrawingErase());
     setMaskVersion((v) => v + 1);
-  }, [brushSize, isDrawingStroke]);
+  }, [brushSize, isDrawingErase]);
 
   const handleStrokeMove = useCallback((x: number, y: number) => {
     const canvas = maskCanvasRef.current;
     if (!canvas || !lastPointRef.current) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.save();
-    ctx.globalCompositeOperation = isDrawingStroke() ? 'source-over' : 'destination-out';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.restore();
-
+    applyStrokeLine(canvas, lastPointRef.current, { x, y }, brushSize, isDrawingErase());
     lastPointRef.current = { x, y };
+
     if (!rafMaskRef.current) {
       rafMaskRef.current = requestAnimationFrame(() => {
         rafMaskRef.current = null;
         setMaskVersion((v) => v + 1);
       });
     }
-  }, [brushSize, isDrawingStroke]);
+  }, [brushSize, isDrawingErase]);
 
   const handleStrokeEnd = useCallback(() => {
     lastPointRef.current = null;
@@ -170,43 +153,21 @@ export function usePhotoCutout({
 
   const handleWandClick = useCallback((x: number, y: number) => {
     if (!currentImageSrc || dimensions.width === 0 || dimensions.height === 0) return;
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = currentImageSrc;
     img.onload = () => {
-      const off = document.createElement('canvas');
-      off.width = dimensions.width;
-      off.height = dimensions.height;
-      const offCtx = off.getContext('2d', { willReadFrequently: true });
-      if (!offCtx) return;
-
-      offCtx.drawImage(img, 0, 0);
-      const selMask = floodSelectMask(offCtx, dimensions.width, dimensions.height, x, y, tolerance);
-      const mCanvas = maskCanvasRef.current;
-      if (!mCanvas) return;
-      const mCtx = mCanvas.getContext('2d');
-      if (!mCtx) return;
-
-      const mData = mCtx.getImageData(0, 0, dimensions.width, dimensions.height);
-      const drawing = isDrawingStroke();
-      for (let i = 0; i < dimensions.width * dimensions.height; i++) {
-        if (selMask[i] === 1) mData.data[i * 4 + 3] = drawing ? 255 : 0;
-      }
-      mCtx.putImageData(mData, 0, 0);
+      applyWandSelection(canvas, img, dimensions.width, dimensions.height, x, y, tolerance, isDrawingErase());
       setMaskVersion((v) => v + 1);
     };
-  }, [currentImageSrc, dimensions, tolerance, isDrawingStroke]);
+  }, [currentImageSrc, dimensions, tolerance, isDrawingErase]);
 
   const handleInvertMask = useCallback(() => {
-    const canvas = maskCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < canvas.width * canvas.height; i++) {
-      imgData.data[i * 4 + 3] = 255 - imgData.data[i * 4 + 3];
-    }
-    ctx.putImageData(imgData, 0, 0);
+    if (!maskCanvasRef.current) return;
+    invertCanvasAlpha(maskCanvasRef.current);
     setMaskVersion((v) => v + 1);
   }, []);
 
@@ -214,24 +175,48 @@ export function usePhotoCutout({
     const canvas = maskCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     setMaskVersion((v) => v + 1);
   }, []);
 
-  const handleApplyCutout = useCallback(() => {
+  const handleApplyCutout = useCallback(async () => {
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas || !currentImageSrc) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = currentImageSrc;
-    img.onload = () => {
-      const transformedUrl = applyMaskToImage(img, maskCanvas, true);
-      onCommitImage(transformedUrl);
+
+    try {
+      setIsProcessing(true);
+      setStatusMessage('Refining edges in Rust SIMD engine...');
+
+      if (window.solsticeAPI?.photoRefineCutout) {
+        const maskDataUrl = maskCanvas.toDataURL('image/png');
+        const refinedCutoutUrl = await window.solsticeAPI.photoRefineCutout({
+          imageDataUrl: currentImageSrc,
+          maskDataUrl,
+          choke,
+          feather,
+        });
+        onCommitImage(refinedCutoutUrl);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = currentImageSrc;
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const transformedUrl = applyMaskToImage(img, maskCanvas, true);
+            onCommitImage(transformedUrl);
+            resolve(null);
+          };
+        });
+      }
       handleResetMask();
       setActiveTool(null);
-    };
-  }, [currentImageSrc, onCommitImage, handleResetMask, setActiveTool]);
+    } catch (err) {
+      console.error('Failed to apply cutout:', err);
+    } finally {
+      setIsProcessing(false);
+      setStatusMessage('');
+    }
+  }, [currentImageSrc, choke, feather, onCommitImage, handleResetMask, setActiveTool]);
 
   const handleInpaintObject = useCallback(() => {
     const maskCanvas = maskCanvasRef.current;
@@ -274,6 +259,10 @@ export function usePhotoCutout({
     setBrushSize,
     tolerance,
     setTolerance,
+    choke,
+    setChoke,
+    feather,
+    setFeather,
     previewMode,
     setPreviewMode,
     isProcessing,

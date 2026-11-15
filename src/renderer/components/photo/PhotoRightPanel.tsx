@@ -37,7 +37,7 @@ interface PhotoRightPanelProps {
 
 export const PhotoRightPanel: React.FC<PhotoRightPanelProps> = memo(({
   activeTool,
-  onSelectTool,
+  onSelectTool: _onSelectTool,
   imageSrc,
   fileName,
   dimensions,
@@ -73,15 +73,17 @@ export const PhotoRightPanel: React.FC<PhotoRightPanelProps> = memo(({
             onChangeBrushSize={cutout.setBrushSize}
             tolerance={cutout.tolerance}
             onChangeTolerance={cutout.setTolerance}
+            choke={cutout.choke}
+            onChangeChoke={cutout.setChoke}
+            feather={cutout.feather}
+            onChangeFeather={cutout.setFeather}
             previewMode={cutout.previewMode}
             onSelectPreviewMode={cutout.setPreviewMode}
             onAutoRemove={cutout.handleAutoRemove}
-            onClassicalAutoRemove={cutout.handleClassicalAutoRemove}
             onInvertMask={cutout.handleInvertMask}
             onResetMask={cutout.handleResetMask}
             onApply={cutout.handleApplyCutout}
             onCancel={cutout.handleCancelCutout}
-            onSwitchToHealing={() => onSelectTool?.('erase')}
             isProcessing={cutout.isProcessing}
             statusMessage={cutout.statusMessage}
             progressPercent={cutout.progressPercent}

@@ -74,13 +74,10 @@ export const PhotoCutoutCanvasOverlay: React.FC<PhotoCutoutCanvasOverlayProps> =
     ctx.clip();
 
     if (previewMode === 'overlay') {
-      // Draw semi-transparent red wash on masked/erased areas
+      // Draw classic Rubylith semi-transparent red wash on erased areas
       ctx.drawImage(maskCanvas, pan.x, pan.y, drawW, drawH);
       ctx.globalCompositeOperation = 'source-in';
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.42)'; // Soft pale red tint
-      ctx.fillRect(pan.x, pan.y, drawW, drawH);
-    } else if (previewMode === 'white') {
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.38)'; // Soft pale red QuickMask tint
       ctx.fillRect(pan.x, pan.y, drawW, drawH);
     }
 

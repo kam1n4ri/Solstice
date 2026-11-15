@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::photo_file_ops;
 use crate::tone_engine;
+use crate::cutout_engine;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowOpenResult {
@@ -209,6 +210,20 @@ pub fn photo_apply_tone(
     }
 
     Err("Either data_url or file_path must be provided".to_string())
+}
+
+#[tauri::command]
+pub fn photo_refine_cutout(
+    image_data_url: String,
+    mask_data_url: String,
+    choke: Option<i32>,
+    feather: Option<u32>,
+) -> Result<String, String> {
+    let params = cutout_engine::CutoutEdgeParams {
+        choke: choke.unwrap_or(0),
+        feather: feather.unwrap_or(0),
+    };
+    cutout_engine::process_cutout(&image_data_url, &mask_data_url, &params)
 }
 
 fn capitalize(s: &str) -> String {

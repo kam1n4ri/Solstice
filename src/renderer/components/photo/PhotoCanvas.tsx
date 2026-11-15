@@ -197,18 +197,26 @@ export const PhotoCanvas: React.FC<PhotoCanvasProps> = memo(({
     ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     ctx.translate(-cx, -cy);
 
-    // Fast GPU Checkerboard via pre-cached pattern
-    const pattern = getCheckerboard(ctx);
-    if (pattern) {
-      ctx.fillStyle = pattern;
+    // Fast GPU Checkerboard or Solid Studio Backdrop
+    if (activeTool === 'cutout' && maskPreviewMode === 'white') {
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(pan.x, pan.y, drawW, drawH);
+    } else if (activeTool === 'cutout' && maskPreviewMode === 'black') {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(pan.x, pan.y, drawW, drawH);
+    } else {
+      const pattern = getCheckerboard(ctx);
+      if (pattern) {
+        ctx.fillStyle = pattern;
+        ctx.fillRect(pan.x, pan.y, drawW, drawH);
+      }
     }
 
     // Image
     ctx.save();
     renderAdjustedImage(ctx, img, pan.x, pan.y, drawW, drawH, adjustments, filterPreset, filterIntensity);
 
-    if ((activeTool === 'cutout' || activeTool === 'erase') && maskCanvas && maskPreviewMode === 'transparent') {
+    if ((activeTool === 'cutout' || activeTool === 'erase') && maskCanvas && maskPreviewMode !== 'overlay') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.drawImage(maskCanvas, pan.x, pan.y, drawW, drawH);
     }

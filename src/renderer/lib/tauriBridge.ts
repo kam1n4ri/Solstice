@@ -98,6 +98,15 @@ export function initTauriBridge(): void {
       });
     },
 
+    photoRefineCutout: async (payload) => {
+      return await invoke<string>('photo_refine_cutout', {
+        imageDataUrl: payload.imageDataUrl,
+        maskDataUrl: payload.maskDataUrl,
+        choke: payload.choke,
+        feather: payload.feather,
+      });
+    },
+
     photoGetDirectory: async () => {
       return await invoke('photo_get_directory');
     },

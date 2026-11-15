@@ -36,22 +36,37 @@ export async function getSegmentationPipeline(onProgress?: AiProgressCallback): 
 
   loadingPromise = (async () => {
     try {
-      onProgress?.(10, 'Initializing AI neural engine (MODNet Apache-2.0)...');
-      const segmenter = await pipeline('image-segmentation', 'Xenova/modnet', {
+      onProgress?.(10, 'Initializing Universal AI Matting (RMBG-1.4)...');
+      const segmenter = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
         progress_callback: (p: any) => {
           if (p.status === 'progress' && p.total) {
             const pct = Math.min(95, Math.round((p.loaded / p.total) * 100));
             onProgress?.(pct, `Loading AI weights (${pct}%)...`);
           } else if (p.status === 'ready') {
-            onProgress?.(95, 'AI model ready');
+            onProgress?.(95, 'Universal AI ready');
           }
         },
       });
       segmenterInstance = segmenter;
       return segmenter;
-    } catch (err) {
-      loadingPromise = null;
-      throw err;
+    } catch (primaryErr) {
+      console.warn('RMBG-1.4 model unavailable, trying fallback:', primaryErr);
+      try {
+        onProgress?.(15, 'Loading fallback neural matting (MODNet)...');
+        const segmenter = await pipeline('image-segmentation', 'Xenova/modnet', {
+          progress_callback: (p: any) => {
+            if (p.status === 'progress' && p.total) {
+              const pct = Math.min(95, Math.round((p.loaded / p.total) * 100));
+              onProgress?.(pct, `Loading AI weights (${pct}%)...`);
+            }
+          },
+        });
+        segmenterInstance = segmenter;
+        return segmenter;
+      } catch (fallbackErr) {
+        loadingPromise = null;
+        throw fallbackErr;
+      }
     }
   })();
 

@@ -136,6 +136,12 @@ export interface SolsticeAPI {
       vignette: number;
     };
   }) => Promise<string>;
+  photoRefineCutout?: (payload: {
+    imageDataUrl: string;
+    maskDataUrl: string;
+    choke?: number;
+    feather?: number;
+  }) => Promise<string>;
   photoGetDirectory?: () => Promise<string>;
   photoDeleteWorkingCopy?: (filePath: string) => Promise<boolean>;
   photoGetThumbnail?: (filePath: string) => Promise<string | null>;
