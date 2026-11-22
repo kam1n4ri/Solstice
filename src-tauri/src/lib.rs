@@ -2,10 +2,14 @@ pub mod commands;
 pub mod pdf_engine;
 pub mod pdf_commands;
 pub mod pdf_tool_commands;
+pub mod docs_types;
+pub mod docs_engine;
+pub mod docs_commands;
 
 use commands::*;
 use pdf_commands::*;
 use pdf_tool_commands::*;
+use docs_commands::*;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -49,6 +53,10 @@ pub fn run() {
             pdf_save_files_to_folder,
             reveal_in_folder,
             delete_file,
+            docs_open_file,
+            docs_save_file,
+            docs_auto_save,
+            docs_export_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

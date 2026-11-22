@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { SolsticeAPI } from '@shared/types/api';
 import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
+import { toByteArray } from './byteUtils';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -105,15 +106,50 @@ export function initTauriBridge(): void {
 
     // Native Docs File IPC
     docsOpenFile: async (filePath?: string) => {
-      return await invoke('docs_open_file', { filePath });
+      const res = await invoke<any>('docs_open_file', { filePath });
+      if (!res || !res.success) return res;
+
+      if (res.format === 'docx' && res.data) {
+        try {
+          const mammoth = await import('mammoth');
+          const arrayBuffer = new Uint8Array(res.data).buffer;
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          res.content = result.value?.trim() || '<p></p>';
+        } catch (err: any) {
+          res.content = `<p>Error reading docx: ${err?.message || 'unknown'}</p>`;
+        }
+      } else if (res.format === 'md' && res.content) {
+        const { markdownToHtml } = await import('../../shared/formatConverter');
+        res.content = markdownToHtml(res.content);
+      } else if (res.format === 'txt' && res.content) {
+        const { plainTextToHtml } = await import('../../shared/formatConverter');
+        res.content = plainTextToHtml(res.content);
+      }
+      return res;
     },
 
     docsSaveFile: async (payload) => {
       return await invoke('docs_save_file', { payload });
     },
 
+    docsAutoSave: async (payload) => {
+      return await invoke('docs_auto_save', { payload });
+    },
+
     docsExportFile: async (payload) => {
+      if (payload.format === 'pdf') {
+        window.print();
+        return { success: true };
+      }
       return await invoke('docs_export_file', { payload });
+    },
+
+    docsSetDirty: (_isDirty: boolean) => {
+      // In Tauri mode, dirty status tracking
+    },
+
+    docsConfirmUnsaved: async () => {
+      return 'dont-save';
     },
 
     // Hub Recent Files IPC
@@ -243,27 +279,4 @@ export function initTauriBridge(): void {
   };
 
   window.solsticeAPI = api;
-}
-
-function toByteArray(data: Uint8Array | number[] | string): number[] {
-  if (data instanceof Uint8Array) {
-    return Array.from(data);
-  }
-  if (Array.isArray(data)) {
-    return data;
-  }
-  if (typeof data === 'string') {
-    const base64Clean = data.includes(',') ? data.split(',')[1] : data;
-    try {
-      const binary = atob(base64Clean);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return Array.from(bytes);
-    } catch {
-      return Array.from(new TextEncoder().encode(data));
-    }
-  }
-  return [];
 }

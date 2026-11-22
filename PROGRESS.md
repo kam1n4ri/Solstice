@@ -24,6 +24,12 @@
     - **Page Number Scroll Stabilization**: Resolved observer oscillation and ping-pong fight between scroll events and smooth scroll; separated passive rAF scroll tracking from programmatic page jumping (`jumpToPage`).
     - **Working Native Text Selection & Clipboard**: Fixed PDF.js text layer `--scale-factor` dimensions, purged root `select-none` on page containers, and introduced explicit translucent selection styles and pointer event pass-throughs.
     - **Reliable Recent Files Removal**: Introduced persistent dismissed recent IDs tracking in `PdfRecentStorage.ts` ensuring non-destructive removal from recents persists across backend disk scans without touching physical working copies.
+  - [x] **Native Tauri Docs Backend & Auto-Save Engine**:
+    - **Native Rust File Engine**: Implemented `src-tauri/src/docs_engine.rs`, `src-tauri/src/docs_types.rs`, and `src-tauri/src/docs_commands.rs` providing `docs_open_file`, `docs_save_file`, `docs_auto_save`, and `docs_export_file`.
+    - **Safe Working Copy Isolation**: Documents are created and autosaved in `~/Documents/Solstice/Documents/` without mutating external source files.
+    - **Multi-Format Parsing & Conversion**: Seamlessly parses `.docx` (via mammoth ArrayBuffer bridge), `.md` (via Markdown parser), `.txt`, and `.html`.
+    - **Dual Disk Recents Discovery**: Updated `get_recent_files` to automatically scan both `~/Documents/Solstice/PDFs/` and `~/Documents/Solstice/Documents/` and sort descending by `lastModified`.
+    - **Cleaned Home Template Strip**: Replaced redundant templates (notes, memo, report) with a single, clean "Blank document" card per user request.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

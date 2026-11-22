@@ -124,8 +124,10 @@ pub fn maximize_window(window: WebviewWindow) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_recent_files(app: AppHandle) -> Vec<Value> {
-    let pdf_dir = crate::pdf_engine::get_solstice_pdf_dir(&app);
     let mut results = vec![];
+
+    // 1. Scan PDFs directory
+    let pdf_dir = crate::pdf_engine::get_solstice_pdf_dir(&app);
     if let Ok(entries) = std::fs::read_dir(pdf_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -158,6 +160,43 @@ pub fn get_recent_files(app: AppHandle) -> Vec<Value> {
             }
         }
     }
+
+    // 2. Scan Documents directory
+    let docs_dir = crate::docs_engine::get_solstice_docs_dir(&app);
+    if let Ok(entries) = std::fs::read_dir(docs_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let ext = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase())
+                    .unwrap_or_default();
+                if ["html", "htm", "md", "txt", "docx"].contains(&ext.as_str()) {
+                    let meta = entry.metadata().ok();
+                    let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let last_modified = meta
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let file_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("Untitled.html")
+                        .to_string();
+                    results.push(serde_json::json!({
+                        "filePath": path.to_string_lossy(),
+                        "fileName": file_name,
+                        "fileSize": file_size,
+                        "lastModified": last_modified,
+                        "tool": "docs"
+                    }));
+                }
+            }
+        }
+    }
+
     // Sort recent files descending by lastModified
     results.sort_by(|a, b| {
         let b_time = b.get("lastModified").and_then(|v| v.as_u64()).unwrap_or(0);
