@@ -52,6 +52,12 @@
     - **Triple Disk Recents Discovery**: Extended `get_recent_files` to scan `~/Documents/Solstice/Whiteboards/` for `.excalidraw`, `.json`, `.tldr`, and `.solstice` files, unifying recents discovery across Hub and Whiteboard desk.
     - **Modular Whiteboard Bridge (`tauriWhiteboardBridge.ts`)**: Extracted all Whiteboard bridge operations into `src/renderer/lib/whiteboard/tauriWhiteboardBridge.ts` (57 lines) and integrated into `tauriBridge.ts`.
     - **Clean Desk Hero & Pale Pastel Aesthetics**: Softened `WhiteboardDeskHero.tsx` action buttons from solid amber to delicate, light-valued pastel tones (`bg-amber-50/90`, `border-amber-200/80`, `text-amber-950`) adhering strictly to `AGENTS.md`.
+  - [x] **Hub System Fonts Asset Management & IPC (Phase 3)**:
+    - **Native Font Engine**: Implemented `src-tauri/src/font_engine.rs`, `src-tauri/src/font_types.rs`, and `src-tauri/src/font_commands.rs` providing `get_installed_fonts`, `save_installed_font`, `import_local_font`, and `delete_installed_font`.
+    - **Suite-Wide Font Manifest**: Manages font binaries and metadata in `~/Documents/Solstice/Fonts/` with persistent `fonts.json` and base64 dataUrl serialization (`data:font/woff2;base64,...`).
+    - **Local Font Import & Google Fonts Downloader**: User can import `.ttf`, `.otf`, `.woff2` files via native OS dialog or download Google Fonts with regular and bold variants. Emits real-time `fonts-updated` event to synchronize font availability across Hub, Docs, and Whiteboard.
+    - **Modular Font Bridge (`tauriFontBridge.ts`)**: Extracted font bridging into `src/renderer/lib/hub/tauriFontBridge.ts` (151 lines) and connected to `tauriBridge.ts`.
+    - **Modular Discipline & Build Verification**: All files strictly `< 250–300 lines of code`. Verified 0 errors across `cargo check -p solstice-native` and `npm run build:renderer`.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

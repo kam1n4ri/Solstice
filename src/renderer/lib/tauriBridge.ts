@@ -5,6 +5,7 @@ import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
 import { toByteArray } from './byteUtils';
 import { tauriPdfBridge } from './pdf/tauriPdfBridge';
 import { tauriWhiteboardBridge } from './whiteboard/tauriWhiteboardBridge';
+import { tauriFontBridge } from './hub/tauriFontBridge';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -176,13 +177,7 @@ export function initTauriBridge(): void {
     },
 
     // Suite Fonts IPC
-    getInstalledFonts: async () => {
-      try {
-        return await invoke('get_installed_fonts');
-      } catch {
-        return [];
-      }
-    },
+    ...tauriFontBridge,
 
     // Native PDF File & Offline Tools IPC (Spread modular bridge)
     ...tauriPdfBridge,

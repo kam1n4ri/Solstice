@@ -251,11 +251,6 @@ pub fn delete_file(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn get_installed_fonts() -> Vec<Value> {
-    vec![]
-}
-
 fn capitalize(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {

@@ -8,12 +8,16 @@ pub mod docs_commands;
 pub mod whiteboard_types;
 pub mod whiteboard_engine;
 pub mod whiteboard_commands;
+pub mod font_types;
+pub mod font_engine;
+pub mod font_commands;
 
 use commands::*;
 use pdf_commands::*;
 use pdf_tool_commands::*;
 use docs_commands::*;
 use whiteboard_commands::*;
+use font_commands::*;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -65,6 +69,9 @@ pub fn run() {
             whiteboard_save_file,
             whiteboard_auto_save,
             whiteboard_export_file,
+            save_installed_font,
+            import_local_font,
+            delete_installed_font,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
