@@ -18,6 +18,7 @@ export interface ToolDefinition {
   brandSuffix: string;
   brandColorClass: string;
   cardHoverBorder?: string;
+  isAvailable: boolean;
   tagline: string;
   description: string;
   category: ToolCategory;

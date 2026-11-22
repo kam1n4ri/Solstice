@@ -13,6 +13,7 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
   const [isLaunching, setIsLaunching] = useState(false);
 
   const handleLaunch = async () => {
+    if (!tool.isAvailable || isLaunching) return;
     try {
       setIsLaunching(true);
       await onLaunch(tool.id);
@@ -24,12 +25,14 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
   return (
     <article
       className={cn(
-        'group relative flex flex-col justify-between p-space-lg rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.05)] border border-outline-variant/30 transition-all duration-300',
-        tool.cardHoverBorder || 'hover:border-outline-variant/60'
+        'group relative flex flex-col justify-between p-space-lg rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.03)] border border-outline-variant/30 transition-all duration-300',
+        tool.isAvailable
+          ? cn('hover:shadow-[0_8px_20px_rgba(0,0,0,0.05)]', tool.cardHoverBorder || 'hover:border-outline-variant/60')
+          : 'opacity-85'
       )}
     >
       <div className="flex flex-col">
-        {/* Top Header Row with Exact In-App Brand Typography Logo and (if running) Running Badge */}
+        {/* Top Header Row with Logo as in App, Running Badge, or Coming Soon Pill */}
         <div className="flex items-center justify-between mb-space-sm min-h-[32px]">
           <div className="flex items-baseline select-none">
             <span className="text-lg font-extrabold tracking-tight text-slate-900 group-hover:text-slate-950 transition-colors">
@@ -45,12 +48,16 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
             </span>
           </div>
 
-          {isOpen && (
+          {isOpen ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Running
             </span>
-          )}
+          ) : !tool.isAvailable ? (
+            <span className="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-full shrink-0">
+              Coming Soon
+            </span>
+          ) : null}
         </div>
 
         {/* Short Description */}
@@ -59,17 +66,20 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
         </p>
       </div>
 
-      {/* Bottom Action Row */}
+      {/* Bottom Action Row: Greyed out and unclickable for unmade apps */}
       <div className="pt-space-md mt-space-lg flex items-center justify-start border-t border-surface-container/50">
         <button
           onClick={handleLaunch}
-          disabled={isLaunching}
+          disabled={!tool.isAvailable || isLaunching}
           type="button"
+          title={!tool.isAvailable ? 'This application is currently in development' : undefined}
           className={cn(
-            'inline-flex items-center gap-1.5 px-space-md h-8 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer',
-            isOpen
-              ? 'bg-secondary-container text-on-secondary-fixed-variant hover:bg-secondary-container/80 shadow-sm'
-              : 'bg-surface-container text-on-surface hover:bg-secondary-container hover:text-on-secondary-fixed-variant'
+            'inline-flex items-center gap-1.5 px-space-md h-8 rounded-lg text-xs font-medium transition-all duration-200 select-none',
+            !tool.isAvailable
+              ? 'bg-surface-container/30 text-on-surface-variant/40 border border-outline-variant/20 cursor-not-allowed opacity-60'
+              : isOpen
+                ? 'bg-secondary-container text-on-secondary-fixed-variant hover:bg-secondary-container/80 shadow-sm cursor-pointer'
+                : 'bg-surface-container text-on-surface hover:bg-secondary-container hover:text-on-secondary-fixed-variant cursor-pointer'
           )}
         >
           {isLaunching ? (
@@ -82,7 +92,12 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
           ) : (
             <>
               <span>Launch</span>
-              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              <ArrowRight
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform duration-200',
+                  tool.isAvailable ? 'group-hover:translate-x-0.5' : 'opacity-30'
+                )}
+              />
             </>
           )}
         </button>

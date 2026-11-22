@@ -16,6 +16,7 @@ export const ToolWindowView: React.FC<ToolWindowViewProps> = ({ toolId }) => {
     name: `Solstice ${toolId.charAt(0).toUpperCase() + toolId.slice(1)}`,
     brandSuffix: toolId,
     brandColorClass: 'text-slate-600',
+    isAvailable: false,
     tagline: 'Creative & Productivity Studio',
     description: 'Independent desktop application for creative and productivity workflows.',
     category: 'productivity',

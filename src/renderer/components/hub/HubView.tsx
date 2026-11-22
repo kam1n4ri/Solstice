@@ -49,6 +49,9 @@ export const HubView: React.FC = () => {
   }, []);
 
   const handleLaunchTool = useCallback(async (toolId: ToolId, initialPath?: string) => {
+    const target = TOOLS_CATALOG.find((t) => t.id === toolId);
+    if (target && !target.isAvailable) return;
+
     if (!window.solsticeAPI?.openToolWindow) {
       console.warn('Solstice IPC API unavailable in standalone browser mode.');
       setActiveTools((prev) => (prev.includes(toolId) ? prev : [...prev, toolId]));
