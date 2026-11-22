@@ -16,32 +16,9 @@
   - [x] Implemented Rust commands in `src-tauri/src/commands.rs` (`open_tool_window`, `get_active_tools`, `get_app_version`, `photo_open_file`, etc.)
   - [x] Compiled native desktop binary `target/debug/solstice-native` in pure Rust with code 0
 - [x] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
-- [ ] **Step 4: Solstice Photo Native Engine Integration**
-  - [x] **Step 4A: Viewport Canvas & Native File I/O**
-    - [x] Created `src-tauri/src/photo_file_ops.rs` with safe isolated working copy protection in `~/Documents/Solstice/Photos`
-    - [x] Integrated native Linux file picker dialogs via Rust `rfd`
-    - [x] Refined the slim 48px tool rail with pale pastel active indicators and logical tool grouping
-    - [x] Verified smooth cursor-centered pan/zoom and canvas dimension HUD
-  - [x] **Step 4B: Non-Destructive Tone Adjustment Engine** (32-bit floating point pipeline in Rust)
-    - [x] Implemented multi-threaded Rayon tone pipeline across 16 CPU cores in `src-tauri/src/tone_engine.rs`
-    - [x] Linear sRGB space pipeline: brightness, highlights & shadows recovery, mid-gray pivot contrast, warmth (Kelvin shift), saturation, and radial vignette falloff
-    - [x] Zero-copy 256-entry `sRGB -> Linear` LUT via `std::sync::OnceLock`
-    - [x] Exposed `photo_apply_tone` command and wired into `tauriBridge.ts`
-    - [x] Integrated "Apply to Image" commit action with 32-bit SIMD badge and soft pale pastel buttons in `PhotoAdjustInspector.tsx`
-    - [x] Enhanced `PhotoExportModal` to process high-resolution export files through native Rust engine
-  - [x] **Step 4C: Interactive AI Cutout Studio** (Restore & Erase brushes with live mask overlay)
-    - [x] Created `src-tauri/src/cutout_engine.rs` implementing multi-threaded mask erosion/dilation (choke) and separable box feathering across 16 CPU cores
-    - [x] Upgraded AI pipeline in `photoCutoutAiHelper.ts` to support universal RMBG-1.4 matting with graceful fallback
-    - [x] Redesigned `PhotoCutoutInspector.tsx` with intuitive 3-step workflow: Auto AI Cutout, Magic Wand, Keep/Restore & Erase/Remove brushes, and Edge Choke/Feather sliders
-    - [x] Added 4 clean studio preview modes: QuickMask Red (Rubylith), Checkerboard, White Studio Matte, and Black Studio Matte in `PhotoCanvas.tsx`
-    - [x] Created `photoMaskStrokeHelper.ts` for clean modular separation of brush strokes and wand selections (< 250 LOC)
-    - [x] Wired `photo_refine_cutout` command in Tauri bridge to apply native edge refinement upon commit
-  - [x] **Step 4D: AI Object Healing & Inpainting**
-    - [x] Implemented native multi-threaded content-aware inpainting engine in `src-tauri/src/inpaint_engine.rs` across 16 CPU cores with Rayon
-    - [x] Fast iterative boundary synthesis propagating color gradients and texture inward with distance-squared weighting
-    - [x] Exposed `photo_inpaint` command in `src-tauri/src/commands.rs` and wired into `src/renderer/lib/tauriBridge.ts`
-    - [x] Redesigned `PhotoEraseInspector.tsx` with clear 3-mode selector (Object Heal, Alpha Erase, Restore), texture blend radius slider, and soft pale pastel action buttons
-    - [x] Integrated `handleInpaintObject` in `usePhotoCutout.ts` to seamlessly commit healed images into undo/redo history without freezing the UI thread
+- [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
+  - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
+  - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)
 
 ---
 
