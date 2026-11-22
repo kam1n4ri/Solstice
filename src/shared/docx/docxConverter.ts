@@ -27,11 +27,11 @@ function parseInlineRuns(htmlFragment: string, defaultBold = false): TextRun[] {
   const tokens = htmlFragment.split(/(<[^>]+>)/g).filter(Boolean);
   const runs: TextRun[] = [];
   const styleStack: SpanStyle[] = [];
-  let bold = defaultBold,
-    italics = false,
-    underline = false,
-    strike = false,
-    isCode = false;
+  let bold = defaultBold;
+  let italics = false;
+  let underline = false;
+  let strike = false;
+  let isCode = false;
 
   for (const t of tokens) {
     const l = t.toLowerCase();
@@ -126,7 +126,7 @@ function parseTable(tableHtml: string): Table {
   });
 }
 
-export async function createDocxFromHtml(html: string): Promise<Buffer> {
+export async function createDocxFromHtml(html: string): Promise<Uint8Array> {
   const children: (Paragraph | Table)[] = [];
   const blockRegex =
     /<(table|pre|h[1-3]|blockquote|ol|ul|p|li)[^>]*>(.*?)<\/\1>|<img\s+[^>]*src=["']([^"']*)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gis;
@@ -159,7 +159,8 @@ export async function createDocxFromHtml(html: string): Promise<Buffer> {
       }
     } else if (tag === 'ol') {
       const liRegex = /<li[^>]*>(.*?)<\/li>/gis;
-      let liMatch: RegExpExecArray | null, idx = 1;
+      let liMatch: RegExpExecArray | null;
+      let idx = 1;
       while ((liMatch = liRegex.exec(innerHtml)) !== null) {
         const itemContent = liMatch[1].replace(/<label[^>]*>.*?<\/label>/gis, '').trim();
         const runs = parseInlineRuns(itemContent);
@@ -195,5 +196,7 @@ export async function createDocxFromHtml(html: string): Promise<Buffer> {
     children.push(new Paragraph({ children: [new TextRun({ text: cleanText || 'Empty Document' })] }));
   }
 
-  return Packer.toBuffer(new Document({ sections: [{ properties: {}, children }] }));
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  const arrayBuffer = await Packer.toArrayBuffer(doc);
+  return new Uint8Array(arrayBuffer);
 }

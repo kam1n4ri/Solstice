@@ -17,6 +17,28 @@ export function readFallbackFileInput(
   onLoaded: (payload: { title: string; content: string }) => void
 ): void {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+  if (ext === 'docx') {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (buffer) {
+        try {
+          const mammoth = await import('mammoth');
+          const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
+          const htmlContent = result.value?.trim() || '<p></p>';
+          editor.commands.setContent(htmlContent);
+          const title = file.name.replace(/\.[^/.]+$/, '');
+          onLoaded({ title, content: htmlContent });
+        } catch {
+          editor.commands.setContent('<p>Error reading Word document</p>');
+        }
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = (event) => {
     const raw = event.target?.result as string;
@@ -76,12 +98,24 @@ export async function performSaveDocument(params: {
   }
 
   const cleanFormat = resolveSaveFormat(activePath);
+  let docxData: number[] | undefined;
+  if (cleanFormat === 'docx') {
+    try {
+      const { createDocxFromHtml } = await import('@shared/docx/docxConverter');
+      const bytes = await createDocxFromHtml(editor.getHTML());
+      docxData = Array.from(bytes);
+    } catch (err) {
+      console.error('Failed to convert docx:', err);
+    }
+  }
+
   const res = await window.solsticeAPI.docsSaveFile({
     filePath: isSaveAs ? undefined : activePath || undefined,
     title,
     content: editor.getHTML(),
     format: cleanFormat,
     isSaveAs,
+    data: docxData,
   });
 
   if (res.canceled) return { success: false, canceled: true };

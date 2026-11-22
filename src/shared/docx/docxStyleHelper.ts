@@ -1,4 +1,3 @@
-import fs from 'fs';
 import { AlignmentType, ImageRun } from 'docx';
 
 export type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
@@ -66,18 +65,15 @@ export function tryParseImage(src: string): ImageRun | null {
     if (src.startsWith('data:image/')) {
       const commaIdx = src.indexOf(',');
       if (commaIdx !== -1) {
+        const base64Data = src.slice(commaIdx + 1);
+        const binary = atob(base64Data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
         return new ImageRun({
           type,
-          data: Buffer.from(src.slice(commaIdx + 1), 'base64'),
-          transformation: { width: 400, height: 300 },
-        });
-      }
-    } else if (src.startsWith('file://') || src.startsWith('/')) {
-      const filePath = src.startsWith('file://') ? new URL(src).pathname : src;
-      if (fs.existsSync(filePath)) {
-        return new ImageRun({
-          type,
-          data: fs.readFileSync(filePath),
+          data: bytes,
           transformation: { width: 400, height: 300 },
         });
       }

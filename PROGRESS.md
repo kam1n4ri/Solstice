@@ -29,6 +29,10 @@
     - **Safe Working Copy Isolation**: Documents are created and autosaved in `~/Documents/Solstice/Documents/` without mutating external source files.
     - **Multi-Format Parsing & Conversion**: Seamlessly parses `.docx` (via mammoth ArrayBuffer bridge), `.md` (via Markdown parser), `.txt`, and `.html`.
     - **Dual Disk Recents Discovery**: Updated `get_recent_files` to automatically scan both `~/Documents/Solstice/PDFs/` and `~/Documents/Solstice/Documents/` and sort descending by `lastModified`.
+    - **Universal Word (.docx) & Multi-Format Pipeline**:
+      - Created client-safe OpenXML generator `src/shared/docx/docxConverter.ts` and style helper `docxStyleHelper.ts` to output genuine binary Word `.docx` documents across both native desktop and web preview.
+      - Wired binary buffer passing into `docsSaveFile` and `docsExportFile` with native Rust writing valid `.docx` files.
+      - Added ArrayBuffer decoding via `mammoth.convertToHtml` to `readFallbackFileInput` and updated fallback file input in `DocsView.tsx` to accept `.docx,.html,.htm,.md,.txt`.
     - **Cleaned Home Template Strip**: Replaced redundant templates (notes, memo, report) with a single, clean "Blank document" card per user request.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)

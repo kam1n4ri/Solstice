@@ -129,7 +129,13 @@ export function initTauriBridge(): void {
     },
 
     docsSaveFile: async (payload) => {
-      return await invoke('docs_save_file', { payload });
+      const data = payload.data ? toByteArray(payload.data) : undefined;
+      return await invoke('docs_save_file', {
+        payload: {
+          ...payload,
+          data,
+        },
+      });
     },
 
     docsAutoSave: async (payload) => {
@@ -141,7 +147,13 @@ export function initTauriBridge(): void {
         window.print();
         return { success: true };
       }
-      return await invoke('docs_export_file', { payload });
+      const data = payload.data ? toByteArray(payload.data) : undefined;
+      return await invoke('docs_export_file', {
+        payload: {
+          ...payload,
+          data,
+        },
+      });
     },
 
     docsSetDirty: (_isDirty: boolean) => {

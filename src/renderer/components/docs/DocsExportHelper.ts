@@ -36,7 +36,18 @@ export async function exportDocument(
   const text = editor.getText();
   const md = htmlToMarkdown(html);
 
-  // Use native Electron IPC if available
+  let binaryData: number[] | undefined;
+  if (format === 'docx') {
+    try {
+      const { createDocxFromHtml } = await import('@shared/docx/docxConverter');
+      const bytes = await createDocxFromHtml(html);
+      binaryData = Array.from(bytes);
+    } catch (err) {
+      console.error('Failed to generate docx:', err);
+    }
+  }
+
+  // Use native Solstice IPC if available
   if (window.solsticeAPI?.docsExportFile) {
     const content = format === 'md' ? md : format === 'txt' ? text : html;
     return await window.solsticeAPI.docsExportFile({
@@ -44,6 +55,7 @@ export async function exportDocument(
       title: safeTitle,
       content,
       htmlContent: html,
+      data: binaryData,
     });
   }
 
@@ -67,8 +79,19 @@ export async function exportDocument(
       break;
     }
     case 'docx': {
-      const docxHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${safeTitle}</title></head><body>${html}</body></html>`;
-      downloadFile(docxHtml, `${safeTitle}.doc`, 'application/msword;charset=utf-8');
+      if (binaryData) {
+        const blob = new Blob([new Uint8Array(binaryData)], {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safeTitle}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
       break;
     }
   }

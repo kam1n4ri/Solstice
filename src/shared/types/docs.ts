@@ -14,6 +14,7 @@ export interface DocsSavePayload {
   content: string;
   format?: 'html' | 'md' | 'txt' | 'docx';
   isSaveAs?: boolean;
+  data?: Uint8Array | number[];
 }
 
 export interface DocsSaveResult {
@@ -43,6 +44,7 @@ export interface DocsExportPayload {
   title: string;
   content: string;
   htmlContent: string;
+  data?: Uint8Array | number[];
 }
 
 export interface DocsExportResult {

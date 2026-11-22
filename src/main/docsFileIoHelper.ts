@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createDocxFromHtml } from './docxConverter';
+import { createDocxFromHtml } from '../shared/docx/docxConverter';
 import {
   htmlToMarkdown,
   htmlToPlainText,
@@ -21,8 +21,8 @@ export async function writeContentByExtension(
 ): Promise<void> {
   const ext = path.extname(targetPath).toLowerCase().replace('.', '');
   if (ext === 'docx') {
-    const buf = await createDocxFromHtml(htmlContent);
-    await fs.writeFile(targetPath, buf);
+    const bytes = await createDocxFromHtml(htmlContent);
+    await fs.writeFile(targetPath, Buffer.from(bytes));
   } else if (ext === 'md') {
     await fs.writeFile(targetPath, htmlToMarkdown(htmlContent), 'utf-8');
   } else if (ext === 'txt') {

@@ -157,7 +157,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.html"
+        accept=".docx,.html,.htm,.md,.txt"
         onChange={handleFileChange}
         className="hidden"
       />

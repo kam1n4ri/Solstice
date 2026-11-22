@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu } from 'electron';
 import { windowManager } from './windowManager';
 import { registerIpcHandlers } from './ipcHandlers';
 import { htmlToMarkdown, markdownToHtml } from '../shared/formatConverter';
-import { createDocxFromHtml } from './docxConverter';
+import { createDocxFromHtml } from '../shared/docx/docxConverter';
 import { generatePdfFromHtml } from './pdfExporter';
 
 async function runTests() {
