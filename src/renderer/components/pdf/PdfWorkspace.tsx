@@ -86,7 +86,12 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
     setIsSearchOpen(true);
   }, []);
 
-  const handleZoomChange = useCallback((s: number) => setScale(Math.max(0.4, Math.min(3.0, s))), []);
+  const handleZoomChange = useCallback((s: number | ((prev: number) => number)) => {
+    setScale((prev) => {
+      const next = typeof s === 'function' ? s(prev) : s;
+      return Math.max(0.4, Math.min(3.0, next));
+    });
+  }, []);
   const handleRotate = useCallback(() => setRotation((prev) => (prev + 90) % 360), []);
   const handlePrint = useCallback(() => window.solsticeAPI?.pdfPrint?.(), []);
 
@@ -269,6 +274,7 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
                 onAddAnnotation={ann.addAnnotation}
                 onDeleteAnnotation={ann.deleteAnnotation}
                 onSearchText={handleSearchFromSelection}
+                onZoomChange={handleZoomChange}
               />
             )}
           </div>

@@ -3,7 +3,6 @@ import { PDFPageProxy } from './pdfjsSetup';
 import { PdfPageRenderer } from './PdfPageRenderer';
 import { PageDimensions } from './usePdfDocument';
 import { AnnotationTool, PdfAnnotation } from './annotations/PdfAnnotationTypes';
-import { PdfTextSelection } from './PdfViewerTypes';
 import { PdfContextMenu } from './PdfContextMenu';
 
 interface PdfCanvasProps {
@@ -23,6 +22,7 @@ interface PdfCanvasProps {
   onAddAnnotation?: (annotation: PdfAnnotation) => void;
   onDeleteAnnotation?: (id: string) => void;
   onSearchText?: (query: string) => void;
+  onZoomChange?: (scale: number | ((prev: number) => number)) => void;
 }
 
 export const PdfCanvas: React.FC<PdfCanvasProps> = ({
@@ -41,14 +41,11 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
   penWidth,
   onAddAnnotation,
   onDeleteAnnotation,
-  onSearchText,
+  onZoomChange,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set([1, 2]));
-  const [selectionInfo, setSelectionInfo] = useState<{
-    selection: PdfTextSelection;
-    position: { x: number; y: number };
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const isProgrammaticScrollRef = useRef(false);
   const lastReportedPageRef = useRef(currentPage);
@@ -141,63 +138,41 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     }
   }, [scrollToPage, numPages]);
 
-  // 4. Text Selection Context Menu handler
-  const handleMouseUp = useCallback(() => {
+  // 4. Ctrl + Scroll Wheel Zoom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onZoomChange) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        onZoomChange((prev) => Math.max(0.4, Math.min(3.0, Number((prev + delta).toFixed(2)))));
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [onZoomChange]);
+
+  // 5. Right-Click Context Menu (Shows Copy option only when text is selected)
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      setSelectionInfo(null);
-      return;
+    const text = sel ? sel.toString().trim() : '';
+    if (text.length > 0) {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, text });
+    } else {
+      setContextMenu(null);
     }
-    const text = sel.toString().trim();
-    if (text.length > 0 && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+  }, []);
 
-      let node: Node | null = range.startContainer;
-      let pageNum = currentPage;
-      let pageEl: HTMLElement | null = null;
-
-      while (node) {
-        if (node instanceof HTMLElement && node.getAttribute('data-page-number')) {
-          pageNum = parseInt(node.getAttribute('data-page-number')!, 10);
-          pageEl = node;
-          break;
-        }
-        node = node.parentNode;
-      }
-
-      let xRatio = 0.1;
-      let yRatio = 0.1;
-      let widthRatio = 0.8;
-      let heightRatio = 0.03;
-
-      if (pageEl) {
-        const pageRect = pageEl.getBoundingClientRect();
-        xRatio = Math.max(0, Math.min(1, (rect.left - pageRect.left) / pageRect.width));
-        yRatio = Math.max(0, Math.min(1, (rect.top - pageRect.top) / pageRect.height));
-        widthRatio = Math.max(0.02, Math.min(1, rect.width / pageRect.width));
-        heightRatio = Math.max(0.015, Math.min(1, rect.height / pageRect.height));
-      }
-
-      setSelectionInfo({
-        selection: {
-          text,
-          pageNumber: pageNum,
-          rect: {
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-            xRatio,
-            yRatio,
-            widthRatio,
-            heightRatio,
-          },
-        },
-        position: { x: rect.left + rect.width / 2, y: rect.top },
-      });
-    }
-  }, [currentPage]);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClose = () => setContextMenu(null);
+    window.addEventListener('mousedown', handleClose);
+    return () => window.removeEventListener('mousedown', handleClose);
+  }, [contextMenu]);
 
   // Group annotations by page
   const annotationsByPage = useMemo(() => {
@@ -216,7 +191,7 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      onMouseUp={handleMouseUp}
+      onContextMenu={handleContextMenu}
       className="flex-1 w-full h-full overflow-y-auto overflow-x-auto p-6 flex flex-col items-center custom-scrollbar bg-[#fafbfc]"
     >
       <div className="flex flex-col items-center min-w-full">
@@ -241,25 +216,11 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
         ))}
       </div>
 
-      {/* Text Selection Floating Context Menu */}
-      {selectionInfo && (
-        <PdfContextMenu
-          selection={selectionInfo.selection}
-          position={selectionInfo.position}
-          onCopy={(text) => navigator.clipboard.writeText(text)}
-          onHighlight={(sel) => {
-            onAddAnnotation?.({
-              id: `hl-${Date.now()}`,
-              type: 'highlight',
-              pageNumber: sel.pageNumber,
-              rect: sel.rect,
-              color: highlightColor || 'rgba(254, 240, 138, 0.55)',
-            });
-          }}
-          onSearch={(text) => onSearchText?.(text)}
-          onClose={() => setSelectionInfo(null)}
-        />
-      )}
+      {/* Right-click Copy context menu */}
+      <PdfContextMenu
+        position={contextMenu}
+        onClose={() => setContextMenu(null)}
+      />
     </div>
   );
 };

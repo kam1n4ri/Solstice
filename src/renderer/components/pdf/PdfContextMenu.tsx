@@ -1,97 +1,40 @@
 import React from 'react';
-import { Copy, Highlighter, Search, Check } from 'lucide-react';
-import { PdfTextSelection } from './PdfViewerTypes';
+import { Copy } from 'lucide-react';
 
 interface PdfContextMenuProps {
-  selection: PdfTextSelection | null;
-  position: { x: number; y: number } | null;
-  onCopy: (text: string) => void;
-  onHighlight: (selection: PdfTextSelection) => void;
-  onSearch: (text: string) => void;
+  position: { x: number; y: number; text: string } | null;
   onClose: () => void;
 }
 
-export const PdfContextMenu: React.FC<PdfContextMenuProps> = ({
-  selection,
-  position,
-  onCopy,
-  onHighlight,
-  onSearch,
-  onClose,
-}) => {
-  const [copied, setCopied] = React.useState(false);
+export const PdfContextMenu: React.FC<PdfContextMenuProps> = ({ position, onClose }) => {
+  if (!position) return null;
 
-  if (!selection || !position) return null;
-
-  const handleCopy = () => {
-    onCopy(selection.text);
-    setCopied(true);
-    setTimeout(() => {
-      setCopied(false);
-      onClose();
-    }, 1200);
-  };
-
-  const handleHighlight = () => {
-    onHighlight(selection);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(position.text);
     onClose();
   };
 
-  const handleSearch = () => {
-    onSearch(selection.text);
-    onClose();
-  };
+  // Keep menu inside screen boundaries
+  const menuWidth = 140;
+  const menuHeight = 44;
+  const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(8, position.x));
+  const top = Math.min(window.innerHeight - menuHeight - 12, Math.max(8, position.y));
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        left: `${Math.min(window.innerWidth - 220, Math.max(10, position.x))}px`,
-        top: `${Math.min(window.innerHeight - 100, Math.max(60, position.y - 48))}px`,
-      }}
-      className="z-50 bg-white/95 backdrop-blur-md rounded-xl border border-stone-200/90 shadow-xl px-1.5 py-1 flex items-center gap-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100 select-none"
+      style={{ left: `${left}px`, top: `${top}px` }}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="fixed z-50 min-w-[130px] bg-white/95 backdrop-blur-md rounded-xl border border-stone-200/90 shadow-xl p-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100 select-none"
     >
       <button
         type="button"
         onClick={handleCopy}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-slate-700 hover:bg-stone-100 transition-colors cursor-pointer"
-        title="Copy Selected Text (Ctrl+C)"
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-stone-100 transition-colors cursor-pointer text-left font-medium"
       >
-        {copied ? (
-          <>
-            <Check className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="text-emerald-700 font-medium">Copied</span>
-          </>
-        ) : (
-          <>
-            <Copy className="w-3.5 h-3.5 text-slate-500" />
-            <span>Copy</span>
-          </>
-        )}
-      </button>
-
-      <div className="h-3 w-px bg-stone-200" />
-
-      <button
-        type="button"
-        onClick={handleHighlight}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer font-medium"
-        title="Highlight Selected Text"
-      >
-        <Highlighter className="w-3.5 h-3.5 text-rose-500" />
-        <span>Highlight</span>
-      </button>
-
-      <div className="h-3 w-px bg-stone-200" />
-
-      <button
-        type="button"
-        onClick={handleSearch}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-slate-700 hover:bg-stone-100 transition-colors cursor-pointer"
-        title="Search in Document"
-      >
-        <Search className="w-3.5 h-3.5 text-slate-500" />
-        <span>Find</span>
+        <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+        <span className="flex-1">Copy</span>
+        <span className="text-[10px] text-slate-400 font-mono tracking-tight">Ctrl+C</span>
       </button>
     </div>
   );
