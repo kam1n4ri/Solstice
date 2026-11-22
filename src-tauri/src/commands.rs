@@ -123,8 +123,57 @@ pub fn maximize_window(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_recent_files() -> Vec<Value> {
-    vec![]
+pub fn get_recent_files(app: AppHandle) -> Vec<Value> {
+    let pdf_dir = crate::pdf_engine::get_solstice_pdf_dir(&app);
+    let mut results = vec![];
+    if let Ok(entries) = std::fs::read_dir(pdf_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file()
+                && path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.eq_ignore_ascii_case("pdf"))
+                    .unwrap_or(false)
+            {
+                let meta = entry.metadata().ok();
+                let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                let last_modified = meta
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let file_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("Document.pdf")
+                    .to_string();
+                results.push(serde_json::json!({
+                    "filePath": path.to_string_lossy(),
+                    "fileName": file_name,
+                    "fileSize": file_size,
+                    "lastModified": last_modified,
+                    "tool": "pdf"
+                }));
+            }
+        }
+    }
+    // Sort recent files descending by lastModified
+    results.sort_by(|a, b| {
+        let b_time = b.get("lastModified").and_then(|v| v.as_u64()).unwrap_or(0);
+        let a_time = a.get("lastModified").and_then(|v| v.as_u64()).unwrap_or(0);
+        b_time.cmp(&a_time)
+    });
+    results
+}
+
+#[tauri::command]
+pub fn delete_file(file_path: String) -> Result<(), String> {
+    let path = std::path::PathBuf::from(&file_path);
+    if path.exists() {
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

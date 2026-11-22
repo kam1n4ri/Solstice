@@ -1,6 +1,11 @@
 pub mod commands;
+pub mod pdf_engine;
+pub mod pdf_commands;
+pub mod pdf_tool_commands;
 
 use commands::*;
+use pdf_commands::*;
+use pdf_tool_commands::*;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,6 +39,16 @@ pub fn run() {
             maximize_window,
             get_recent_files,
             get_installed_fonts,
+            pdf_open_file,
+            pdf_read_file,
+            pdf_save_file,
+            pdf_export_file,
+            pdf_rename_file,
+            pdf_select_files,
+            pdf_select_images,
+            pdf_save_files_to_folder,
+            reveal_in_folder,
+            delete_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
