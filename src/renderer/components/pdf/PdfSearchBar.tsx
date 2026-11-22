@@ -11,6 +11,7 @@ interface PdfSearchBarProps {
   onClose: () => void;
   doc: PDFDocumentProxy | null;
   onJumpToPage: (pageNumber: number) => void;
+  initialQuery?: string;
 }
 
 export const PdfSearchBar: React.FC<PdfSearchBarProps> = ({
@@ -18,6 +19,7 @@ export const PdfSearchBar: React.FC<PdfSearchBarProps> = ({
   onClose,
   doc,
   onJumpToPage,
+  initialQuery,
 }) => {
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -27,16 +29,24 @@ export const PdfSearchBar: React.FC<PdfSearchBarProps> = ({
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Auto-focus input when opened
+  // Auto-focus input when opened & set initial query if provided
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
+      if (initialQuery !== undefined) {
+        setQuery(initialQuery);
+      }
+      setTimeout(() => {
+        inputRef.current?.focus();
+        if (initialQuery) {
+          inputRef.current?.select();
+        }
+      }, 50);
     } else {
       setQuery('');
       setMatches([]);
       setCurrentIndex(-1);
     }
-  }, [isOpen]);
+  }, [isOpen, initialQuery]);
 
   // Execute full-text search across document pages
   const performSearch = useCallback(async () => {

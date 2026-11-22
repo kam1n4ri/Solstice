@@ -3,6 +3,8 @@ import { PDFPageProxy } from './pdfjsSetup';
 import { PdfPageRenderer } from './PdfPageRenderer';
 import { PageDimensions } from './usePdfDocument';
 import { AnnotationTool, PdfAnnotation } from './annotations/PdfAnnotationTypes';
+import { PdfLayoutMode, PdfColorTheme, PdfTextSelection } from './PdfViewerTypes';
+import { PdfContextMenu } from './PdfContextMenu';
 
 interface PdfCanvasProps {
   numPages: number;
@@ -20,6 +22,9 @@ interface PdfCanvasProps {
   penWidth?: number;
   onAddAnnotation?: (annotation: PdfAnnotation) => void;
   onDeleteAnnotation?: (id: string) => void;
+  layoutMode?: PdfLayoutMode;
+  colorTheme?: PdfColorTheme;
+  onSearchText?: (query: string) => void;
 }
 
 export const PdfCanvas: React.FC<PdfCanvasProps> = ({
@@ -38,9 +43,16 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
   penWidth,
   onAddAnnotation,
   onDeleteAnnotation,
+  layoutMode = 'single',
+  colorTheme = 'default',
+  onSearchText,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set([1, 2]));
+  const [selectionInfo, setSelectionInfo] = useState<{
+    selection: PdfTextSelection;
+    position: { x: number; y: number };
+  } | null>(null);
 
   // 1. Intersection Observer to detect visible pages & track active page
   useEffect(() => {
@@ -57,7 +69,6 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
           const pageNum = parseInt(entry.target.getAttribute('data-page-number') || '1', 10);
           if (entry.isIntersecting) {
             visible.add(pageNum);
-            // Include buffer pages (previous and next)
             if (pageNum > 1) visible.add(pageNum - 1);
             if (pageNum < numPages) visible.add(pageNum + 1);
 
@@ -69,11 +80,7 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
         });
 
         if (visible.size > 0) {
-          setVisiblePages((prev) => {
-            // Keep union so we don't aggressively unmount during fast scroll
-            const combined = new Set([...prev, ...visible]);
-            return combined;
-          });
+          setVisiblePages((prev) => new Set([...prev, ...visible]));
         }
 
         if (mostVisiblePage !== currentPage && maxIntersectionRatio > 0.2) {
@@ -82,7 +89,7 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
       },
       {
         root: container,
-        rootMargin: '300px 0px', // Preload buffer around viewport
+        rootMargin: '300px 0px',
         threshold: [0, 0.25, 0.5, 0.75, 1.0],
       }
     );
@@ -93,9 +100,9 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     return () => {
       observer.disconnect();
     };
-  }, [numPages, currentPage, onPageChange, scale, rotation]);
+  }, [numPages, currentPage, onPageChange, scale, rotation, layoutMode]);
 
-  // 2. Programmatic jump to page (when user inputs page number or clicks thumbnail)
+  // 2. Programmatic jump to page
   const jumpToPage = useCallback((pageNum: number) => {
     if (!containerRef.current) return;
     const pageEl = containerRef.current.querySelector(`[data-page-number="${pageNum}"]`);
@@ -110,9 +117,83 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     }
   }, [scrollToPage, numPages, jumpToPage]);
 
-  const pageNumbers = Array.from({ length: numPages }, (_, i) => i + 1);
+  // 3. Text Selection Context Menu handler
+  const handleMouseUp = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      setSelectionInfo(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (text.length > 0 && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
 
-  // Group annotations by page so pages with untouched annotations do not re-render
+      let node: Node | null = range.startContainer;
+      let pageNum = currentPage;
+      let pageEl: HTMLElement | null = null;
+
+      while (node) {
+        if (node instanceof HTMLElement && node.getAttribute('data-page-number')) {
+          pageNum = parseInt(node.getAttribute('data-page-number')!, 10);
+          pageEl = node;
+          break;
+        }
+        node = node.parentNode;
+      }
+
+      let xRatio = 0.1;
+      let yRatio = 0.1;
+      let widthRatio = 0.8;
+      let heightRatio = 0.03;
+
+      if (pageEl) {
+        const pageRect = pageEl.getBoundingClientRect();
+        xRatio = Math.max(0, Math.min(1, (rect.left - pageRect.left) / pageRect.width));
+        yRatio = Math.max(0, Math.min(1, (rect.top - pageRect.top) / pageRect.height));
+        widthRatio = Math.max(0.02, Math.min(1, rect.width / pageRect.width));
+        heightRatio = Math.max(0.015, Math.min(1, rect.height / pageRect.height));
+      }
+
+      setSelectionInfo({
+        selection: {
+          text,
+          pageNumber: pageNum,
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            xRatio,
+            yRatio,
+            widthRatio,
+            heightRatio,
+          },
+        },
+        position: { x: rect.left + rect.width / 2, y: rect.top },
+      });
+    }
+  }, [currentPage]);
+
+  // 4. Spread vs Single Layout Rows
+  const pageRows = useMemo(() => {
+    if (layoutMode === 'single') {
+      return Array.from({ length: numPages }, (_, i) => [i + 1]);
+    }
+    // In spread mode: Cover page 1 on its own, then [2, 3], [4, 5], etc.
+    const rows: number[][] = [];
+    if (numPages >= 1) rows.push([1]);
+    for (let p = 2; p <= numPages; p += 2) {
+      if (p + 1 <= numPages) {
+        rows.push([p, p + 1]);
+      } else {
+        rows.push([p]);
+      }
+    }
+    return rows;
+  }, [numPages, layoutMode]);
+
+  // Group annotations by page
   const annotationsByPage = useMemo(() => {
     const map = new Map<number, PdfAnnotation[]>();
     if (!annotations) return map;
@@ -125,35 +206,80 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     return map;
   }, [annotations]);
 
+  // Theme styling
+  const themeBgClass =
+    colorTheme === 'sepia'
+      ? 'bg-[#f4efe4]'
+      : colorTheme === 'dark'
+        ? 'bg-[#141517]'
+        : 'bg-[#fafbfc]';
+
+  const themeFilterStyle =
+    colorTheme === 'sepia'
+      ? { filter: 'sepia(0.22) contrast(0.97)' }
+      : colorTheme === 'dark'
+        ? { filter: 'invert(0.88) hue-rotate(180deg) contrast(0.94)' }
+        : undefined;
+
   return (
     <div
       ref={containerRef}
-      className="flex-1 w-full h-full overflow-y-auto overflow-x-auto bg-[#fafbfc] p-6 flex flex-col items-center custom-scrollbar"
+      onMouseUp={handleMouseUp}
+      className={`flex-1 w-full h-full overflow-y-auto overflow-x-auto p-6 flex flex-col items-center custom-scrollbar transition-colors duration-200 ${themeBgClass}`}
     >
-      <div className="flex flex-col items-center min-w-full">
-        {pageNumbers.map((pageNumber) => {
-          const isVisible = visiblePages.has(pageNumber);
-          return (
-            <PdfPageRenderer
-              key={`${pageNumber}-${rotation}`}
-              pageNumber={pageNumber}
-              getPage={getPage}
-              scale={scale}
-              rotation={rotation}
-              isVisible={isVisible}
-              defaultWidth={defaultDims.width}
-              defaultHeight={defaultDims.height}
-              annotations={annotationsByPage.get(pageNumber)}
-              activeTool={activeTool}
-              highlightColor={highlightColor}
-              penColor={penColor}
-              penWidth={penWidth}
-              onAddAnnotation={onAddAnnotation}
-              onDeleteAnnotation={onDeleteAnnotation}
-            />
-          );
-        })}
+      <div
+        style={themeFilterStyle}
+        className="flex flex-col items-center min-w-full transition-all duration-200"
+      >
+        {pageRows.map((row, rowIdx) => (
+          <div
+            key={rowIdx}
+            className={`flex items-center justify-center gap-4 ${
+              layoutMode === 'spread' && row.length === 2 ? 'w-full max-w-6xl' : ''
+            }`}
+          >
+            {row.map((pageNumber) => (
+              <PdfPageRenderer
+                key={`${pageNumber}-${rotation}`}
+                pageNumber={pageNumber}
+                getPage={getPage}
+                scale={layoutMode === 'spread' ? scale * 0.82 : scale}
+                rotation={rotation}
+                isVisible={visiblePages.has(pageNumber)}
+                defaultWidth={defaultDims.width}
+                defaultHeight={defaultDims.height}
+                annotations={annotationsByPage.get(pageNumber)}
+                activeTool={activeTool}
+                highlightColor={highlightColor}
+                penColor={penColor}
+                penWidth={penWidth}
+                onAddAnnotation={onAddAnnotation}
+                onDeleteAnnotation={onDeleteAnnotation}
+              />
+            ))}
+          </div>
+        ))}
       </div>
+
+      {/* Text Selection Floating Context Menu */}
+      {selectionInfo && (
+        <PdfContextMenu
+          selection={selectionInfo.selection}
+          position={selectionInfo.position}
+          onCopy={(text) => navigator.clipboard.writeText(text)}
+          onHighlight={(sel) => {
+            onAddAnnotation?.({
+              id: `hl-${Date.now()}`,
+              type: 'highlight',
+              pageNumber: sel.pageNumber,
+              rect: sel.rect,
+              color: highlightColor || 'rgba(254, 240, 138, 0.55)',
+            });
+          }}
+          onSearch={(text) => onSearchText?.(text)}
+          onClose={() => setSelectionInfo(null)}
+        />
+      )}
     </div>
   );
 };

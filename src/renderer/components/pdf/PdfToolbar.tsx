@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { AnnotationTool } from './annotations/PdfAnnotationTypes';
 import { PdfToolOptionsPopover } from './annotations/PdfToolOptionsPopover';
+import { PdfPageNavigator } from './PdfPageNavigator';
+import { PdfViewModeMenu } from './PdfViewModeMenu';
+import { PdfLayoutMode, PdfColorTheme } from './PdfViewerTypes';
 
 interface PdfToolbarProps {
   scale: number;
@@ -25,6 +28,13 @@ interface PdfToolbarProps {
   canUndo: boolean;
   onRedo: () => void;
   canRedo: boolean;
+  currentPage: number;
+  numPages: number;
+  onPageChange: (pageNumber: number) => void;
+  layoutMode: PdfLayoutMode;
+  onSelectLayoutMode: (mode: PdfLayoutMode) => void;
+  colorTheme: PdfColorTheme;
+  onSelectColorTheme: (theme: PdfColorTheme) => void;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
@@ -32,6 +42,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
     scale, onZoomChange, onFitWidth, onRotate, isSearchOpen, onToggleSearch,
     activeTool, onSelectTool, highlightColor, onSelectHighlightColor,
     penColor, onSelectPenColor, penWidth, onSelectPenWidth, onUndo, canUndo, onRedo, canRedo,
+    currentPage, numPages, onPageChange, layoutMode, onSelectLayoutMode, colorTheme, onSelectColorTheme,
   } = props;
 
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
@@ -58,7 +69,17 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
 
   return (
     <div className="w-full flex justify-center bg-transparent select-none shrink-0 relative z-40 pointer-events-none">
-      <div className="pointer-events-auto bg-white border-x border-b border-stone-200/90 rounded-b-2xl px-3 py-1 flex items-center gap-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] text-xs font-sans relative">
+      <div className="pointer-events-auto bg-white/95 backdrop-blur-md border-x border-b border-stone-200/90 rounded-b-2xl px-3 py-1 flex items-center gap-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] text-xs font-sans relative">
+        {/* Precision Page Navigation (Prev, Jump-to-Page Input, Next) */}
+        <PdfPageNavigator
+          currentPage={currentPage}
+          numPages={numPages}
+          onPageChange={onPageChange}
+        />
+
+        {/* Section Divider */}
+        <div className="h-4 w-px bg-stone-200 mx-1" />
+
         {/* Selection Tool */}
         <button
           type="button"
@@ -165,7 +186,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
         {/* Section Divider */}
         <div className="h-4 w-px bg-stone-200 mx-1" />
 
-        {/* Viewport Tools: ZoomOut, Percent, ZoomIn, Fit, Search, Rotate */}
+        {/* Viewport Zoom Tools */}
         <button
           type="button"
           onClick={() => onZoomChange(Math.max(0.4, scale - 0.15))}
@@ -199,6 +220,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
           </button>
         )}
 
+        {/* Search */}
         {onToggleSearch && (
           <button
             type="button"
@@ -212,6 +234,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
           </button>
         )}
 
+        {/* Rotate */}
         <button
           type="button"
           onClick={onRotate}
@@ -220,6 +243,17 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
         >
           <RotateCw className="w-4 h-4" />
         </button>
+
+        {/* Section Divider */}
+        <div className="h-4 w-px bg-stone-200 mx-1" />
+
+        {/* View Mode & Reading Theme Menu (Spread Layout, Sepia, Dark) */}
+        <PdfViewModeMenu
+          layoutMode={layoutMode}
+          onSelectLayoutMode={onSelectLayoutMode}
+          colorTheme={colorTheme}
+          onSelectColorTheme={onSelectColorTheme}
+        />
       </div>
     </div>
   );

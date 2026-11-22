@@ -10,6 +10,7 @@ import { usePdfFileOps } from './usePdfFileOps';
 import { ActivePdfDocument } from './PdfContainer';
 import { AlertCircle } from 'lucide-react';
 import { PdfOrganizeView } from './organize/PdfOrganizeView';
+import { PdfLayoutMode, PdfColorTheme } from './PdfViewerTypes';
 
 interface PdfWorkspaceProps {
   document: ActivePdfDocument;
@@ -32,26 +33,56 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [scrollToPage, setScrollToPage] = useState<number | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [layoutMode, setLayoutMode] = useState<PdfLayoutMode>('single');
+  const [colorTheme, setColorTheme] = useState<PdfColorTheme>('default');
   const [isOrganizeMode, setIsOrganizeMode] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(240);
 
   const ann = usePdfAnnotations();
 
-  // Keyboard shortcut: Ctrl+F for in-document search
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    setScrollToPage(page);
+  }, []);
+
+  // Keyboard navigation shortcuts: Ctrl+F, PageUp, PageDown, Home, End, Space
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = window.document.activeElement;
+      const activeTag = (activeEl?.tagName || '').toLowerCase();
+      const isInput =
+        activeTag === 'input' ||
+        activeTag === 'textarea' ||
+        (activeEl as HTMLElement)?.isContentEditable;
+      if (isInput) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setIsSearchOpen((prev) => !prev);
+      } else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) {
+        e.preventDefault();
+        const step = layoutMode === 'spread' ? 2 : 1;
+        handlePageChange(Math.min(numPages, currentPage + step));
+      } else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) {
+        e.preventDefault();
+        const step = layoutMode === 'spread' ? 2 : 1;
+        handlePageChange(Math.max(1, currentPage - step));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        handlePageChange(1);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        handlePageChange(numPages);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [currentPage, numPages, layoutMode, handlePageChange]);
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-    setScrollToPage(page);
+  const handleSearchFromSelection = useCallback((text: string) => {
+    setSearchQuery(text);
+    setIsSearchOpen(true);
   }, []);
 
   const handleZoomChange = useCallback((s: number) => setScale(Math.max(0.4, Math.min(3.0, s))), []);
@@ -197,15 +228,26 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
               canUndo={ann.canUndo}
               onRedo={ann.redo}
               canRedo={ann.canRedo}
+              currentPage={currentPage}
+              numPages={numPages}
+              onPageChange={handlePageChange}
+              layoutMode={layoutMode}
+              onSelectLayoutMode={setLayoutMode}
+              colorTheme={colorTheme}
+              onSelectColorTheme={setColorTheme}
             />
           </div>
 
           <div className="flex-1 relative flex overflow-hidden z-0">
             <PdfSearchBar
               isOpen={isSearchOpen}
-              onClose={() => setIsSearchOpen(false)}
+              onClose={() => {
+                setIsSearchOpen(false);
+                setSearchQuery('');
+              }}
               doc={doc}
               onJumpToPage={handlePageChange}
+              initialQuery={searchQuery}
             />
 
             {isLoading ? (
@@ -229,6 +271,9 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
                 penWidth={ann.penWidth}
                 onAddAnnotation={ann.addAnnotation}
                 onDeleteAnnotation={ann.deleteAnnotation}
+                layoutMode={layoutMode}
+                colorTheme={colorTheme}
+                onSearchText={handleSearchFromSelection}
               />
             )}
           </div>
