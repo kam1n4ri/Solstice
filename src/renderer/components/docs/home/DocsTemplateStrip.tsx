@@ -22,11 +22,9 @@ export const DocsTemplateStrip: React.FC<DocsTemplateStripProps> = ({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+      <div className="flex items-center gap-4">
         {DOC_TEMPLATES.map((tmpl) => {
           const isItemPreparing = isPreparing && preparingId === tmpl.id;
-          const Icon = tmpl.icon;
-          const isBlank = tmpl.id === 'blank';
 
           return (
             <button
@@ -35,7 +33,7 @@ export const DocsTemplateStrip: React.FC<DocsTemplateStripProps> = ({
               onClick={() => onSelectTemplate(tmpl)}
               disabled={isPreparing}
               title={tmpl.description}
-              className="group flex flex-col text-left outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-200 rounded-xl disabled:cursor-wait"
+              className="group flex flex-col text-left outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-200 rounded-xl disabled:cursor-wait w-36"
             >
               <div
                 className={cn(
@@ -51,10 +49,8 @@ export const DocsTemplateStrip: React.FC<DocsTemplateStripProps> = ({
                 >
                   {isItemPreparing ? (
                     <Loader2 className="h-5 w-5 animate-spin text-blue-500/80 stroke-[2]" />
-                  ) : isBlank ? (
-                    <Plus className="h-6 w-6 stroke-[2]" />
                   ) : (
-                    <Icon className="h-5 w-5 stroke-[1.8]" />
+                    <Plus className="h-6 w-6 stroke-[2]" />
                   )}
                 </div>
               </div>
