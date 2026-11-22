@@ -20,6 +20,7 @@ interface DocsEditorProps {
   wordCount: number;
   characterCount: number;
   zoomLevel: number;
+  onChangeZoom?: (zoom: number | ((prev: number) => number)) => void;
   spellCheck: boolean;
   showLiveWordCount: boolean;
   onOpenLinkModal?: () => void;
@@ -32,6 +33,7 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
   wordCount,
   characterCount,
   zoomLevel,
+  onChangeZoom,
   spellCheck,
   showLiveWordCount,
   onOpenLinkModal,
@@ -58,6 +60,28 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
       editor.view.dom.setAttribute('spellcheck', String(spellCheck));
     }
   }, [editor, spellCheck]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !onChangeZoom) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY;
+        const step = 5;
+        onChangeZoom((prev) => {
+          const next = delta < 0 ? prev + step : prev - step;
+          return Math.max(50, Math.min(200, Math.round(next / step) * step));
+        });
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [onChangeZoom]);
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (e.target as HTMLElement).closest('a');
@@ -134,7 +158,9 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
               transformOrigin: 'top center',
               width: isPrintLayout ? `${A4_PAGE_WIDTH_PX}px` : '100%',
               maxWidth: isPrintLayout ? `${A4_PAGE_WIDTH_PX}px` : undefined,
-              marginBottom: scale > 1 ? `calc((${scale} - 1) * 300px)` : undefined,
+              marginBottom: scale > 1
+                ? `${Math.round(((totalPages * A4_PAGE_HEIGHT_PX) + (totalPages * PAGE_GAP_PX)) * (scale - 1))}px`
+                : undefined,
             }}
           >
             {/* Background Physical A4 Sheets in Print Layout */}

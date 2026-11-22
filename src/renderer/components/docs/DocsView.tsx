@@ -216,6 +216,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
           wordCount={wordCount}
           characterCount={characterCount}
           zoomLevel={zoomLevel}
+          onChangeZoom={setZoomLevel}
           spellCheck={spellCheck}
           showLiveWordCount={showLiveWordCount}
           onOpenLinkModal={() => setShowLinkModal(true)}

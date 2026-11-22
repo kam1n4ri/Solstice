@@ -54,9 +54,31 @@ export const DocsOutlineSidebar: React.FC<DocsOutlineSidebarProps> = ({
 
   if (!isOpen) return null;
 
+  const [activePos, setActivePos] = useState<number | null>(null);
+
   const handleHeadingClick = (pos: number) => {
     if (!editor) return;
-    editor.chain().focus().setTextSelection(pos + 1).scrollIntoView().run();
+    setActivePos(pos);
+    editor.chain().focus().setTextSelection(pos + 1).run();
+
+    try {
+      const domNode = editor.view.nodeDOM(pos) as HTMLElement | null;
+      if (domNode && typeof domNode.scrollIntoView === 'function') {
+        domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      // Smooth scroll via container coordinates
+      const coords = editor.view.coordsAtPos(pos + 1);
+      const scrollContainer = document.querySelector('.DocsEditor-scroll');
+      if (coords && scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetY = scrollContainer.scrollTop + (coords.top - containerRect.top) - (containerRect.height / 3);
+        scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+      }
+    } catch {
+      editor.chain().scrollIntoView().run();
+    }
   };
 
   return (
@@ -90,7 +112,10 @@ export const DocsOutlineSidebar: React.FC<DocsOutlineSidebarProps> = ({
               key={h.id}
               onClick={() => handleHeadingClick(h.pos)}
               className={cn(
-                'w-full text-left rounded-lg px-2.5 py-1.5 text-xs truncate transition-colors flex items-center gap-2 hover:bg-blue-50/70 hover:text-blue-900 group',
+                'w-full text-left rounded-lg px-2.5 py-1.5 text-xs truncate transition-colors flex items-center gap-2 group',
+                activePos === h.pos
+                  ? 'bg-blue-50/80 text-blue-800 font-medium'
+                  : 'hover:bg-blue-50/50 hover:text-blue-900',
                 h.level === 1 && 'font-semibold text-slate-900',
                 h.level === 2 && 'pl-5 text-slate-700',
                 h.level === 3 && 'pl-8 text-slate-500 text-[11px]'

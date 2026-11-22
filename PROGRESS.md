@@ -34,6 +34,11 @@
       - Wired binary buffer passing into `docsSaveFile` and `docsExportFile` with native Rust writing valid `.docx` files.
       - Added ArrayBuffer decoding via `mammoth.convertToHtml` to `readFallbackFileInput` and updated fallback file input in `DocsView.tsx` to accept `.docx,.html,.htm,.md,.txt`.
     - **Cleaned Home Template Strip**: Replaced redundant templates (notes, memo, report) with a single, clean "Blank document" card per user request.
+    - **UI, Formatting & Canvas Improvements**:
+      - Added fluid `Ctrl + Mouse Wheel` canvas zooming (50% to 200%) matching the Solstice PDF experience with synchronized zoom states.
+      - Implemented smooth outline jump scrolling with active heading indicator and gentle pale selection states (`bg-blue-50/80 text-blue-800`).
+      - Refined scaled zoom wrapper bottom margin calculation to ensure long multi-page documents maintain full scroll reach at all zoom levels.
+      - Softened blockquote border styling to pale pastel (`rgba(59, 130, 246, 0.45)`) per `AGENTS.md`.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)
