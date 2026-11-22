@@ -1,7 +1,3 @@
-export type PdfLayoutMode = 'single' | 'spread';
-
-export type PdfColorTheme = 'default' | 'sepia' | 'dark';
-
 export interface PdfTextSelection {
   text: string;
   pageNumber: number;

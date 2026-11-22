@@ -19,11 +19,11 @@
   - [x] **Multi-Window Lifecycle Sync**: Resolved Tauri window tracking issue where Hub cards remained stuck in "Running / Focus" after tool windows closed. Added `on_window_event` listener (`Destroyed` & `CloseRequested`) in Rust, real-time `@tauri-apps/api/event` listening in `tauriBridge.ts`, and auto-reconciliation on window focus and heartbeat interval in `HubView.tsx`.
   - [x] **Hub Brand & App Card Redesign**: Removed generic icon boxes on Hub cards. Standardized brand typography across all 8 tools (`Solstice` bold sans-serif + handwritten Caveat script suffix in distinct pale signature colors). Defined brand identity and colors for upcoming tools (`sheets` in emerald, `slides` in orange, `photo` in teal, `audio` in violet, `video` in indigo). Updated `ToolWindowView` and `HubFileCard` with cohesive styling.
   - [x] **Native Tauri PDF Backend & Working Copy Engine**: Ported complete Solstice PDF desktop file architecture to Rust (`pdf_engine.rs`, `pdf_commands.rs`, `pdf_tool_commands.rs`). Implemented strict non-destructive working copy preservation in `~/Documents/Solstice/PDFs/` with persistent JSON mapping, native file picker/save/folder dialogs via `rfd`, automatic recent files disk discovery, file renaming, and OS file explorer reveal. Integrated full IPC bridge in `tauriBridge.ts`.
-  - [x] **Solstice PDF Workspace & Viewer UX Enhancements**:
-    - **Reading Layout Modes**: Added Two-Page Spread (Book Mode) alongside single-page vertical scroll, rendering page 1 as cover followed by balanced `[p, p+1]` spreads.
-    - **Reading Color Themes**: Added soft warm Sepia (`#f4efe4` canvas with delicate `sepia(0.22)`) and soft Inverted Dark Mode (`#141517` canvas with gentle `invert(0.88) hue-rotate(180deg)`) alongside crisp white paper.
-    - **Precision Navigation**: Interactive page jump input (`[ 14 ] / 82`), prev/next buttons, and full keyboard navigation (`PageUp`, `PageDown`, `Home`, `End`, `Space`, `Shift+Space`).
-    - **Text Selection Context Menu**: Floating contextual action popover on text selection with Copy to Clipboard, One-Click Highlight, and Find in Document search prefill.
+  - [x] **Solstice PDF Workspace & Viewer Overhaul**:
+    - **Streamlined Single-Page Flow**: Removed redundant spread layout and sepia/dark filters for a clean, distraction-free document canvas.
+    - **Page Number Scroll Stabilization**: Resolved observer oscillation and ping-pong fight between scroll events and smooth scroll; separated passive rAF scroll tracking from programmatic page jumping (`jumpToPage`).
+    - **Working Native Text Selection & Clipboard**: Fixed PDF.js text layer `--scale-factor` dimensions, purged root `select-none` on page containers, and introduced explicit translucent selection styles and pointer event pass-throughs.
+    - **Reliable Recent Files Removal**: Introduced persistent dismissed recent IDs tracking in `PdfRecentStorage.ts` ensuring non-destructive removal from recents persists across backend disk scans without touching physical working copies.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

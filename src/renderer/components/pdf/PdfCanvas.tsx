@@ -3,7 +3,7 @@ import { PDFPageProxy } from './pdfjsSetup';
 import { PdfPageRenderer } from './PdfPageRenderer';
 import { PageDimensions } from './usePdfDocument';
 import { AnnotationTool, PdfAnnotation } from './annotations/PdfAnnotationTypes';
-import { PdfLayoutMode, PdfColorTheme, PdfTextSelection } from './PdfViewerTypes';
+import { PdfTextSelection } from './PdfViewerTypes';
 import { PdfContextMenu } from './PdfContextMenu';
 
 interface PdfCanvasProps {
@@ -22,8 +22,6 @@ interface PdfCanvasProps {
   penWidth?: number;
   onAddAnnotation?: (annotation: PdfAnnotation) => void;
   onDeleteAnnotation?: (id: string) => void;
-  layoutMode?: PdfLayoutMode;
-  colorTheme?: PdfColorTheme;
   onSearchText?: (query: string) => void;
 }
 
@@ -43,8 +41,6 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
   penWidth,
   onAddAnnotation,
   onDeleteAnnotation,
-  layoutMode = 'single',
-  colorTheme = 'default',
   onSearchText,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +50,11 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     position: { x: number; y: number };
   } | null>(null);
 
-  // 1. Intersection Observer to detect visible pages & track active page
+  const isProgrammaticScrollRef = useRef(false);
+  const lastReportedPageRef = useRef(currentPage);
+  const scrollRafIdRef = useRef<number | null>(null);
+
+  // 1. Lazy render pages near viewport (buffer)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || numPages === 0) return;
@@ -62,35 +62,23 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = new Set<number>();
-        let mostVisiblePage = currentPage;
-        let maxIntersectionRatio = 0;
-
         entries.forEach((entry) => {
-          const pageNum = parseInt(entry.target.getAttribute('data-page-number') || '1', 10);
           if (entry.isIntersecting) {
+            const pageNum = parseInt(entry.target.getAttribute('data-page-number') || '1', 10);
             visible.add(pageNum);
             if (pageNum > 1) visible.add(pageNum - 1);
             if (pageNum < numPages) visible.add(pageNum + 1);
-
-            if (entry.intersectionRatio > maxIntersectionRatio) {
-              maxIntersectionRatio = entry.intersectionRatio;
-              mostVisiblePage = pageNum;
-            }
           }
         });
 
         if (visible.size > 0) {
           setVisiblePages((prev) => new Set([...prev, ...visible]));
         }
-
-        if (mostVisiblePage !== currentPage && maxIntersectionRatio > 0.2) {
-          onPageChange(mostVisiblePage);
-        }
       },
       {
         root: container,
-        rootMargin: '300px 0px',
-        threshold: [0, 0.25, 0.5, 0.75, 1.0],
+        rootMargin: '600px 0px',
+        threshold: 0,
       }
     );
 
@@ -100,24 +88,60 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     return () => {
       observer.disconnect();
     };
-  }, [numPages, currentPage, onPageChange, scale, rotation, layoutMode]);
+  }, [numPages, scale, rotation]);
 
-  // 2. Programmatic jump to page
-  const jumpToPage = useCallback((pageNum: number) => {
-    if (!containerRef.current) return;
-    const pageEl = containerRef.current.querySelector(`[data-page-number="${pageNum}"]`);
-    if (pageEl) {
-      pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
+  // 2. Stable, non-oscillating active page calculation on scroll
+  const handleScroll = useCallback(() => {
+    if (isProgrammaticScrollRef.current) return;
+    if (scrollRafIdRef.current !== null) return;
 
+    scrollRafIdRef.current = requestAnimationFrame(() => {
+      scrollRafIdRef.current = null;
+      const container = containerRef.current;
+      if (!container || numPages === 0) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const targetY = containerRect.top + containerRect.height / 3;
+
+      const pageElements = container.querySelectorAll<HTMLElement>('[data-page-number]');
+      let detectedPage = lastReportedPageRef.current;
+
+      for (let i = 0; i < pageElements.length; i++) {
+        const el = pageElements[i];
+        const r = el.getBoundingClientRect();
+        if (r.top <= targetY && r.bottom >= targetY) {
+          detectedPage = parseInt(el.getAttribute('data-page-number') || '1', 10);
+          break;
+        }
+      }
+
+      if (detectedPage !== lastReportedPageRef.current) {
+        lastReportedPageRef.current = detectedPage;
+        onPageChange(detectedPage);
+      }
+    });
+  }, [numPages, onPageChange]);
+
+  // 3. Programmatic jump to page (direct button or user input jump)
   useEffect(() => {
-    if (scrollToPage && scrollToPage >= 1 && scrollToPage <= numPages) {
-      jumpToPage(scrollToPage);
-    }
-  }, [scrollToPage, numPages, jumpToPage]);
+    if (!scrollToPage || scrollToPage < 1 || scrollToPage > numPages) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-  // 3. Text Selection Context Menu handler
+    const pageEl = container.querySelector<HTMLElement>(`[data-page-number="${scrollToPage}"]`);
+    if (pageEl) {
+      isProgrammaticScrollRef.current = true;
+      lastReportedPageRef.current = scrollToPage;
+      pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      const timer = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollToPage, numPages]);
+
+  // 4. Text Selection Context Menu handler
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) {
@@ -175,24 +199,6 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     }
   }, [currentPage]);
 
-  // 4. Spread vs Single Layout Rows
-  const pageRows = useMemo(() => {
-    if (layoutMode === 'single') {
-      return Array.from({ length: numPages }, (_, i) => [i + 1]);
-    }
-    // In spread mode: Cover page 1 on its own, then [2, 3], [4, 5], etc.
-    const rows: number[][] = [];
-    if (numPages >= 1) rows.push([1]);
-    for (let p = 2; p <= numPages; p += 2) {
-      if (p + 1 <= numPages) {
-        rows.push([p, p + 1]);
-      } else {
-        rows.push([p]);
-      }
-    }
-    return rows;
-  }, [numPages, layoutMode]);
-
   // Group annotations by page
   const annotationsByPage = useMemo(() => {
     const map = new Map<number, PdfAnnotation[]>();
@@ -206,58 +212,32 @@ export const PdfCanvas: React.FC<PdfCanvasProps> = ({
     return map;
   }, [annotations]);
 
-  // Theme styling
-  const themeBgClass =
-    colorTheme === 'sepia'
-      ? 'bg-[#f4efe4]'
-      : colorTheme === 'dark'
-        ? 'bg-[#141517]'
-        : 'bg-[#fafbfc]';
-
-  const themeFilterStyle =
-    colorTheme === 'sepia'
-      ? { filter: 'sepia(0.22) contrast(0.97)' }
-      : colorTheme === 'dark'
-        ? { filter: 'invert(0.88) hue-rotate(180deg) contrast(0.94)' }
-        : undefined;
-
   return (
     <div
       ref={containerRef}
+      onScroll={handleScroll}
       onMouseUp={handleMouseUp}
-      className={`flex-1 w-full h-full overflow-y-auto overflow-x-auto p-6 flex flex-col items-center custom-scrollbar transition-colors duration-200 ${themeBgClass}`}
+      className="flex-1 w-full h-full overflow-y-auto overflow-x-auto p-6 flex flex-col items-center custom-scrollbar bg-[#fafbfc]"
     >
-      <div
-        style={themeFilterStyle}
-        className="flex flex-col items-center min-w-full transition-all duration-200"
-      >
-        {pageRows.map((row, rowIdx) => (
-          <div
-            key={rowIdx}
-            className={`flex items-center justify-center gap-4 ${
-              layoutMode === 'spread' && row.length === 2 ? 'w-full max-w-6xl' : ''
-            }`}
-          >
-            {row.map((pageNumber) => (
-              <PdfPageRenderer
-                key={`${pageNumber}-${rotation}`}
-                pageNumber={pageNumber}
-                getPage={getPage}
-                scale={layoutMode === 'spread' ? scale * 0.82 : scale}
-                rotation={rotation}
-                isVisible={visiblePages.has(pageNumber)}
-                defaultWidth={defaultDims.width}
-                defaultHeight={defaultDims.height}
-                annotations={annotationsByPage.get(pageNumber)}
-                activeTool={activeTool}
-                highlightColor={highlightColor}
-                penColor={penColor}
-                penWidth={penWidth}
-                onAddAnnotation={onAddAnnotation}
-                onDeleteAnnotation={onDeleteAnnotation}
-              />
-            ))}
-          </div>
+      <div className="flex flex-col items-center min-w-full">
+        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => (
+          <PdfPageRenderer
+            key={`${pageNumber}-${rotation}`}
+            pageNumber={pageNumber}
+            getPage={getPage}
+            scale={scale}
+            rotation={rotation}
+            isVisible={visiblePages.has(pageNumber)}
+            defaultWidth={defaultDims.width}
+            defaultHeight={defaultDims.height}
+            annotations={annotationsByPage.get(pageNumber)}
+            activeTool={activeTool}
+            highlightColor={highlightColor}
+            penColor={penColor}
+            penWidth={penWidth}
+            onAddAnnotation={onAddAnnotation}
+            onDeleteAnnotation={onDeleteAnnotation}
+          />
         ))}
       </div>
 

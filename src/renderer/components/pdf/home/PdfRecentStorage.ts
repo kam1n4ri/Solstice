@@ -10,6 +10,33 @@ export interface RecentPdfItem {
 
 const PDF_RECENT_STORAGE_KEY = 'solstice:pdf:recent_docs';
 const PDF_STARRED_STORAGE_KEY = 'solstice:pdf:starred_docs';
+const PDF_DISMISSED_STORAGE_KEY = 'solstice:pdf:dismissed_recents';
+
+export function getDismissedPdfs(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PDF_DISMISSED_STORAGE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function dismissRecentPdf(idOrPath: string): void {
+  try {
+    const dismissed = getDismissedPdfs();
+    dismissed.add(idOrPath);
+    localStorage.setItem(PDF_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+  } catch {}
+}
+
+export function undismissRecentPdf(idOrPath: string): void {
+  try {
+    const dismissed = getDismissedPdfs();
+    if (dismissed.delete(idOrPath)) {
+      localStorage.setItem(PDF_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+    }
+  } catch {}
+}
 
 export function formatPdfDate(timestamp: number): string {
   const now = Date.now();
@@ -70,6 +97,7 @@ export function toggleStarredPdf(id: string): boolean {
 export async function fetchMergedRecentPdfs(): Promise<RecentPdfItem[]> {
   const mergedMap = new Map<string, RecentPdfItem>();
   const starredIds = new Set(getStarredPdfs());
+  const dismissed = getDismissedPdfs();
   let hasBackend = false;
 
   // 1. Authoritative backend documents verified on disk
@@ -81,6 +109,7 @@ export async function fetchMergedRecentPdfs(): Promise<RecentPdfItem[]> {
         .filter((f) => f.tool === 'pdf')
         .forEach((f) => {
           const key = f.filePath;
+          if (dismissed.has(key)) return;
           const cleanTitle = f.fileName.replace(/\.pdf$/i, '').trim();
 
           mergedMap.set(key, {
@@ -104,6 +133,9 @@ export async function fetchMergedRecentPdfs(): Promise<RecentPdfItem[]> {
       const localItems: RecentPdfItem[] = JSON.parse(raw);
       localItems.forEach((item) => {
         const key = item.filePath || item.id;
+        if (dismissed.has(key) || (item.filePath && dismissed.has(item.filePath)) || dismissed.has(item.id)) {
+          return;
+        }
         if (mergedMap.has(key)) {
           const existing = mergedMap.get(key)!;
           if (item.title && item.title !== 'Untitled' && item.title !== 'Untitled document') {
@@ -147,6 +179,9 @@ export async function fetchMergedRecentPdfs(): Promise<RecentPdfItem[]> {
 
 export function saveRecentPdf(item: RecentPdfItem): void {
   try {
+    if (item.filePath) undismissRecentPdf(item.filePath);
+    if (item.id) undismissRecentPdf(item.id);
+
     const raw = localStorage.getItem(PDF_RECENT_STORAGE_KEY);
     const localItems: RecentPdfItem[] = raw ? JSON.parse(raw) : [];
     const filtered = localItems.filter(
@@ -162,6 +197,7 @@ export function saveRecentPdf(item: RecentPdfItem): void {
 
 export function removeRecentPdf(idOrPath: string): void {
   try {
+    dismissRecentPdf(idOrPath);
     const raw = localStorage.getItem(PDF_RECENT_STORAGE_KEY);
     if (!raw) return;
     const localItems: RecentPdfItem[] = JSON.parse(raw);
@@ -192,8 +228,14 @@ export async function removeRecentPdfAsync(
       if (!result.success && !result.error?.includes('ENOENT')) {
         console.warn('Physical file deletion warning:', result.error);
       }
-    } else if (targetPath && window.solsticeAPI?.removeRecentFile) {
-      await window.solsticeAPI.removeRecentFile(targetPath, false);
+      undismissRecentPdf(targetPath);
+      undismissRecentPdf(id);
+    } else {
+      if (targetPath) dismissRecentPdf(targetPath);
+      if (id) dismissRecentPdf(id);
+      if (targetPath && window.solsticeAPI?.removeRecentFile) {
+        await window.solsticeAPI.removeRecentFile(targetPath, false);
+      }
     }
 
     const raw = localStorage.getItem(PDF_RECENT_STORAGE_KEY);

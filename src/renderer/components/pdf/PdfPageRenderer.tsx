@@ -102,6 +102,7 @@ const PdfPageRendererComponent: React.FC<PdfPageRendererProps> = ({
           textLayerContainer.innerHTML = '';
           textLayerContainer.style.width = `${Math.floor(viewport.width)}px`;
           textLayerContainer.style.height = `${Math.floor(viewport.height)}px`;
+          textLayerContainer.style.setProperty('--scale-factor', `${viewport.scale}`);
 
           try {
             const textContent = await page.getTextContent();
@@ -146,7 +147,7 @@ const PdfPageRendererComponent: React.FC<PdfPageRendererProps> = ({
         width: Math.floor(pageWidth),
         height: Math.floor(pageHeight),
       }}
-      className="relative mx-auto my-5 bg-white rounded-md shadow-[0_4px_24px_-2px_rgba(44,38,30,0.09)] border border-stone-200/80 transition-shadow select-none group/page"
+      className="relative mx-auto my-5 bg-white rounded-md shadow-[0_4px_24px_-2px_rgba(44,38,30,0.09)] border border-stone-200/80 transition-shadow group/page"
     >
       {/* 1. Canvas Layer (High-DPI Razor Sharp Graphics) */}
       <canvas ref={canvasRef} className="block rounded-md" />
@@ -154,7 +155,7 @@ const PdfPageRendererComponent: React.FC<PdfPageRendererProps> = ({
       {/* 2. Text Layer (Selectable & Copyable Text Overlay) */}
       <div
         ref={textLayerRef}
-        className="textLayer absolute inset-0 select-text overflow-hidden rounded-md pointer-events-auto"
+        className="textLayer absolute inset-0 select-text overflow-hidden rounded-md pointer-events-auto z-[5]"
       />
 
       {/* 3. Annotation & Markup Layer */}

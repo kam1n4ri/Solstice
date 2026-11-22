@@ -6,8 +6,6 @@ import {
 import { AnnotationTool } from './annotations/PdfAnnotationTypes';
 import { PdfToolOptionsPopover } from './annotations/PdfToolOptionsPopover';
 import { PdfPageNavigator } from './PdfPageNavigator';
-import { PdfViewModeMenu } from './PdfViewModeMenu';
-import { PdfLayoutMode, PdfColorTheme } from './PdfViewerTypes';
 
 interface PdfToolbarProps {
   scale: number;
@@ -31,10 +29,6 @@ interface PdfToolbarProps {
   currentPage: number;
   numPages: number;
   onPageChange: (pageNumber: number) => void;
-  layoutMode: PdfLayoutMode;
-  onSelectLayoutMode: (mode: PdfLayoutMode) => void;
-  colorTheme: PdfColorTheme;
-  onSelectColorTheme: (theme: PdfColorTheme) => void;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
@@ -42,7 +36,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
     scale, onZoomChange, onFitWidth, onRotate, isSearchOpen, onToggleSearch,
     activeTool, onSelectTool, highlightColor, onSelectHighlightColor,
     penColor, onSelectPenColor, penWidth, onSelectPenWidth, onUndo, canUndo, onRedo, canRedo,
-    currentPage, numPages, onPageChange, layoutMode, onSelectLayoutMode, colorTheme, onSelectColorTheme,
+    currentPage, numPages, onPageChange,
   } = props;
 
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
@@ -243,17 +237,6 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = (props) => {
         >
           <RotateCw className="w-4 h-4" />
         </button>
-
-        {/* Section Divider */}
-        <div className="h-4 w-px bg-stone-200 mx-1" />
-
-        {/* View Mode & Reading Theme Menu (Spread Layout, Sepia, Dark) */}
-        <PdfViewModeMenu
-          layoutMode={layoutMode}
-          onSelectLayoutMode={onSelectLayoutMode}
-          colorTheme={colorTheme}
-          onSelectColorTheme={onSelectColorTheme}
-        />
       </div>
     </div>
   );
