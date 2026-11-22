@@ -1,11 +1,16 @@
 import React from 'react';
 import {
   FileText,
+  Table,
+  Presentation,
   PenTool,
+  Image as ImageIcon,
   BookOpen,
   FolderOpen,
   Trash2,
   ExternalLink,
+  Volume2,
+  Video,
 } from 'lucide-react';
 import { RecentFileRecord, ToolId } from '@shared/types';
 
@@ -27,19 +32,54 @@ const TOOL_CONFIG: Record<
     text: 'text-blue-700/90',
     border: 'border-blue-200/60',
   },
+  sheets: {
+    label: 'Solstice Sheets',
+    icon: Table,
+    bg: 'bg-emerald-50/70',
+    text: 'text-emerald-700/90',
+    border: 'border-emerald-200/60',
+  },
+  slides: {
+    label: 'Solstice Slides',
+    icon: Presentation,
+    bg: 'bg-orange-50/70',
+    text: 'text-orange-700/90',
+    border: 'border-orange-200/60',
+  },
   whiteboard: {
-    label: 'Whiteboard',
+    label: 'Solstice Whiteboard',
     icon: PenTool,
     bg: 'bg-amber-50/70',
     text: 'text-amber-800/90',
     border: 'border-amber-200/60',
   },
   pdf: {
-    label: 'PDF Studio',
+    label: 'Solstice PDF',
     icon: BookOpen,
     bg: 'bg-rose-50/70',
     text: 'text-rose-700/90',
     border: 'border-rose-200/60',
+  },
+  photo: {
+    label: 'Solstice Photo',
+    icon: ImageIcon,
+    bg: 'bg-teal-50/70',
+    text: 'text-teal-700/90',
+    border: 'border-teal-200/60',
+  },
+  audio: {
+    label: 'Solstice Audio',
+    icon: Volume2,
+    bg: 'bg-violet-50/70',
+    text: 'text-violet-700/90',
+    border: 'border-violet-200/60',
+  },
+  video: {
+    label: 'Solstice Video',
+    icon: Video,
+    bg: 'bg-indigo-50/70',
+    text: 'text-indigo-700/90',
+    border: 'border-indigo-200/60',
   },
 };
 

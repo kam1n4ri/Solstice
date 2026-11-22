@@ -15,6 +15,9 @@ export type NavSection = 'home' | 'files' | 'updates';
 export interface ToolDefinition {
   id: ToolId;
   name: string;
+  brandSuffix: string;
+  brandColorClass: string;
+  cardHoverBorder?: string;
   tagline: string;
   description: string;
   category: ToolCategory;

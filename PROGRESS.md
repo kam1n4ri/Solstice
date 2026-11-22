@@ -17,6 +17,7 @@
   - [x] Compiled native desktop binary `target/debug/solstice-native` in pure Rust with code 0
 - [x] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
   - [x] **Multi-Window Lifecycle Sync**: Resolved Tauri window tracking issue where Hub cards remained stuck in "Running / Focus" after tool windows closed. Added `on_window_event` listener (`Destroyed` & `CloseRequested`) in Rust, real-time `@tauri-apps/api/event` listening in `tauriBridge.ts`, and auto-reconciliation on window focus and heartbeat interval in `HubView.tsx`.
+  - [x] **Hub Brand & App Card Redesign**: Removed generic icon boxes on Hub cards. Standardized brand typography across all 8 tools (`Solstice` bold sans-serif + handwritten Caveat script suffix in distinct pale signature colors). Defined brand identity and colors for upcoming tools (`sheets` in emerald, `slides` in orange, `photo` in teal, `audio` in violet, `video` in indigo). Updated `ToolWindowView` and `HubFileCard` with cohesive styling.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)
