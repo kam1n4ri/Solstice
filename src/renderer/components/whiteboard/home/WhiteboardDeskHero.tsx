@@ -54,7 +54,7 @@ export const WhiteboardDeskHero: React.FC<WhiteboardDeskHeroProps> = ({
         </h1>
         {/* Hand-drawn SVG swoop underline */}
         <svg
-          className="w-52 sm:w-64 h-3.5 text-amber-500/90 -mt-1 sm:-mt-1.5"
+          className="w-52 sm:w-64 h-3.5 text-amber-500/60 -mt-1 sm:-mt-1.5"
           viewBox="0 0 240 14"
           fill="none"
         >
@@ -74,10 +74,10 @@ export const WhiteboardDeskHero: React.FC<WhiteboardDeskHeroProps> = ({
           type="button"
           onClick={onNewBlank}
           disabled={isPreparing}
-          className="flex-1 bg-amber-400 hover:bg-amber-500 active:scale-[0.98] rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 shadow-[0_8px_22px_rgba(245,158,11,0.24)] hover:shadow-[0_10px_28px_rgba(245,158,11,0.32)] transition-all duration-150 cursor-pointer text-slate-950 group disabled:opacity-75 disabled:cursor-wait"
+          className="flex-1 bg-amber-50/90 hover:bg-amber-100/90 active:scale-[0.98] border border-amber-200/80 rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-150 cursor-pointer text-amber-950 group disabled:opacity-75 disabled:cursor-wait"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-300/80 flex items-center justify-center shrink-0 shadow-2xs text-slate-950">
+            <div className="w-10 h-10 rounded-xl bg-amber-100/70 border border-amber-200/60 flex items-center justify-center shrink-0 shadow-2xs text-amber-800">
               {isPreparing && preparingId === 'blank' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
@@ -85,13 +85,13 @@ export const WhiteboardDeskHero: React.FC<WhiteboardDeskHeroProps> = ({
               )}
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-sm font-bold text-slate-950 leading-tight">New Board</span>
-              <span className="text-[11px] font-medium text-amber-950/75 leading-tight mt-0.5">
+              <span className="text-sm font-bold text-amber-950 leading-tight">New Board</span>
+              <span className="text-[11px] font-medium text-amber-800/80 leading-tight mt-0.5">
                 Blank infinite sheet
               </span>
             </div>
           </div>
-          <ArrowRight className="h-4.5 w-4.5 text-slate-950 stroke-[2.4] group-hover:translate-x-1 transition-transform shrink-0" />
+          <ArrowRight className="h-4.5 w-4.5 text-amber-800 stroke-[2.4] group-hover:translate-x-1 transition-transform shrink-0" />
         </button>
 
         {/* Button 2: Drop or Browse */}
@@ -100,14 +100,14 @@ export const WhiteboardDeskHero: React.FC<WhiteboardDeskHeroProps> = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`flex-1 bg-white/85 hover:bg-white active:scale-[0.98] border-2 border-dashed rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-150 cursor-pointer text-slate-800 group ${
+          className={`flex-1 bg-white/80 hover:bg-white active:scale-[0.98] border-2 border-dashed rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-150 cursor-pointer text-slate-800 group ${
             isDragOver
-              ? 'border-amber-500 bg-amber-50/50 scale-[1.02]'
-              : 'border-slate-300 hover:border-slate-400'
+              ? 'border-amber-400 bg-amber-50/40 scale-[1.01]'
+              : 'border-stone-300/80 hover:border-amber-300 hover:bg-amber-50/20'
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100/90 flex items-center justify-center shrink-0 text-slate-600 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-stone-100/80 border border-stone-200/50 flex items-center justify-center shrink-0 text-slate-600 shadow-2xs">
               <FolderOpen className="h-4.5 w-4.5" />
             </div>
             <div className="flex flex-col text-left">

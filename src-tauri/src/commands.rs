@@ -197,6 +197,42 @@ pub fn get_recent_files(app: AppHandle) -> Vec<Value> {
         }
     }
 
+    // 3. Scan Whiteboards directory
+    let whiteboards_dir = crate::whiteboard_engine::get_solstice_whiteboards_dir(&app);
+    if let Ok(entries) = std::fs::read_dir(whiteboards_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let ext = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase())
+                    .unwrap_or_default();
+                if ["excalidraw", "json", "tldr", "solstice"].contains(&ext.as_str()) {
+                    let meta = entry.metadata().ok();
+                    let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let last_modified = meta
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let file_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("Whiteboard.excalidraw")
+                        .to_string();
+                    results.push(serde_json::json!({
+                        "filePath": path.to_string_lossy(),
+                        "fileName": file_name,
+                        "fileSize": file_size,
+                        "lastModified": last_modified,
+                        "tool": "whiteboard"
+                    }));
+                }
+            }
+        }
+    }
+
     // Sort recent files descending by lastModified
     results.sort_by(|a, b| {
         let b_time = b.get("lastModified").and_then(|v| v.as_u64()).unwrap_or(0);

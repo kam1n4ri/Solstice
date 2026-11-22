@@ -4,6 +4,7 @@ import { SolsticeAPI } from '@shared/types/api';
 import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
 import { toByteArray } from './byteUtils';
 import { tauriPdfBridge } from './pdf/tauriPdfBridge';
+import { tauriWhiteboardBridge } from './whiteboard/tauriWhiteboardBridge';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -185,6 +186,9 @@ export function initTauriBridge(): void {
 
     // Native PDF File & Offline Tools IPC (Spread modular bridge)
     ...tauriPdfBridge,
+
+    // Native Whiteboard File & Engine IPC
+    ...tauriWhiteboardBridge,
 
     revealInFolder: async (filePath: string) => {
       try {

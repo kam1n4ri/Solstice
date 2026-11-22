@@ -45,6 +45,13 @@
       - Implemented smooth outline jump scrolling with active heading indicator and gentle pale selection states (`bg-blue-50/80 text-blue-800`).
       - Refined scaled zoom wrapper bottom margin calculation to ensure long multi-page documents maintain full scroll reach at all zoom levels.
       - Softened blockquote border styling to pale pastel (`rgba(59, 130, 246, 0.45)`) per `AGENTS.md`.
+  - [x] **Native Tauri Whiteboard Engine & Clean Desk Hero (Phase 2)**:
+    - **Native Rust File Engine & Auto-Save**: Implemented `src-tauri/src/whiteboard_engine.rs`, `src-tauri/src/whiteboard_types.rs`, and `src-tauri/src/whiteboard_commands.rs` providing `whiteboard_open_file`, `whiteboard_save_file`, `whiteboard_auto_save`, and `whiteboard_export_file`.
+    - **Safe Working Copy Isolation**: All sketches and diagrams are safely stored and auto-saved in `~/Documents/Solstice/Whiteboards/` with automatic unique naming and safe renaming on title change.
+    - **Multi-Format Export Pipeline**: PNG export decodes base64 data to binary bytes; SVG and JSON snapshots are saved as clean UTF-8 text via native file dialogs.
+    - **Triple Disk Recents Discovery**: Extended `get_recent_files` to scan `~/Documents/Solstice/Whiteboards/` for `.excalidraw`, `.json`, `.tldr`, and `.solstice` files, unifying recents discovery across Hub and Whiteboard desk.
+    - **Modular Whiteboard Bridge (`tauriWhiteboardBridge.ts`)**: Extracted all Whiteboard bridge operations into `src/renderer/lib/whiteboard/tauriWhiteboardBridge.ts` (57 lines) and integrated into `tauriBridge.ts`.
+    - **Clean Desk Hero & Pale Pastel Aesthetics**: Softened `WhiteboardDeskHero.tsx` action buttons from solid amber to delicate, light-valued pastel tones (`bg-amber-50/90`, `border-amber-200/80`, `text-amber-950`) adhering strictly to `AGENTS.md`.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

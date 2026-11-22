@@ -5,11 +5,15 @@ pub mod pdf_tool_commands;
 pub mod docs_types;
 pub mod docs_engine;
 pub mod docs_commands;
+pub mod whiteboard_types;
+pub mod whiteboard_engine;
+pub mod whiteboard_commands;
 
 use commands::*;
 use pdf_commands::*;
 use pdf_tool_commands::*;
 use docs_commands::*;
+use whiteboard_commands::*;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,6 +61,10 @@ pub fn run() {
             docs_save_file,
             docs_auto_save,
             docs_export_file,
+            whiteboard_open_file,
+            whiteboard_save_file,
+            whiteboard_auto_save,
+            whiteboard_export_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
