@@ -77,48 +77,6 @@ export function initTauriBridge(): void {
       return await invoke('docs_export_file', { payload });
     },
 
-    // Photo Studio Native IPC
-    photoOpenFile: async (requestedPath?: string) => {
-      return await invoke('photo_open_file', { requestedPath });
-    },
-
-    photoSaveFile: async (payload) => {
-      return await invoke('photo_save_file', { payload });
-    },
-
-    photoExportFile: async (payload) => {
-      return await invoke('photo_export_file', { payload });
-    },
-
-    photoApplyTone: async (payload) => {
-      return await invoke<string>('photo_apply_tone', {
-        dataUrl: payload.dataUrl,
-        filePath: payload.filePath,
-        params: payload.params,
-      });
-    },
-
-    photoRefineCutout: async (payload) => {
-      return await invoke<string>('photo_refine_cutout', {
-        imageDataUrl: payload.imageDataUrl,
-        maskDataUrl: payload.maskDataUrl,
-        choke: payload.choke,
-        feather: payload.feather,
-      });
-    },
-
-    photoInpaint: async (payload) => {
-      return await invoke<string>('photo_inpaint', {
-        imageDataUrl: payload.imageDataUrl,
-        maskDataUrl: payload.maskDataUrl,
-        radius: payload.radius,
-      });
-    },
-
-    photoGetDirectory: async () => {
-      return await invoke('photo_get_directory');
-    },
-
     // Hub Recent Files IPC
     getRecentFiles: async () => {
       try {

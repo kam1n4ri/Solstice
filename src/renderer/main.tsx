@@ -1,16 +1,3 @@
-// Force browser runtime detection for client-side web packages (e.g. transformers.js / onnxruntime-web) in Electron
-if (typeof process !== 'undefined' && process.release?.name === 'node') {
-  try {
-    Object.defineProperty(process, 'release', {
-      value: { ...process.release, name: 'browser' },
-      configurable: true,
-      writable: true,
-    });
-  } catch {
-    // ignore
-  }
-}
-
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';

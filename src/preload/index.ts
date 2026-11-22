@@ -41,9 +41,6 @@ import {
   PdfProtectResult,
   PdfUnlockPayload,
   PdfUnlockResult,
-  PhotoOpenResult,
-  PhotoSavePayload,
-  PhotoSaveResult,
   RecentFileRecord,
   InstalledFont,
 } from '../shared/types';
@@ -143,27 +140,6 @@ const api: SolsticeAPI = {
     ipcRenderer.invoke('pdf:protect', payload),
   pdfUnlock: (payload: PdfUnlockPayload): Promise<PdfUnlockResult> =>
     ipcRenderer.invoke('pdf:unlock', payload),
-
-  // Photo Studio Native IPC
-  photoOpenFile: (requestedPath?: string): Promise<PhotoOpenResult> =>
-    ipcRenderer.invoke('photo:open-file', requestedPath),
-  photoSaveFile: (payload: PhotoSavePayload): Promise<PhotoSaveResult> =>
-    ipcRenderer.invoke('photo:save-file', payload),
-  photoExportFile: (payload: {
-    dataUrl: string;
-    defaultName?: string;
-    format?: string;
-    quality?: number;
-  }): Promise<PhotoSaveResult> =>
-    ipcRenderer.invoke('photo:export-file', payload),
-  photoGetDirectory: (): Promise<string> =>
-    ipcRenderer.invoke('photo:get-directory'),
-  photoDeleteWorkingCopy: (filePath: string): Promise<boolean> =>
-    ipcRenderer.invoke('photo:delete-working-copy', filePath),
-  photoGetThumbnail: (filePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('photo:get-thumbnail', filePath),
-  photoRevertToOriginal: (workingPath: string): Promise<PhotoOpenResult> =>
-    ipcRenderer.invoke('photo:revert-to-original', workingPath),
 
   // File System & Hub IPC
   revealInFolder: (filePath: string): Promise<boolean> =>

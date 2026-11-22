@@ -4,5 +4,4 @@ export * from './types/docs';
 export * from './types/whiteboard';
 export * from './types/pdf';
 export * from './types/fonts';
-export * from './types/photo';
 export * from './types/api';

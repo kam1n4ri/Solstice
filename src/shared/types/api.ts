@@ -47,11 +47,6 @@ import {
   PdfUnlockPayload,
   PdfUnlockResult,
 } from './pdf';
-import {
-  PhotoOpenResult,
-  PhotoSavePayload,
-  PhotoSaveResult,
-} from './photo';
 import { InstalledFont } from './fonts';
 
 export interface SolsticeAPI {
@@ -112,45 +107,6 @@ export interface SolsticeAPI {
   pdfPageNumbers?: (payload: PdfPageNumberPayload) => Promise<PdfPageNumberResult>;
   pdfProtect?: (payload: PdfProtectPayload) => Promise<PdfProtectResult>;
   pdfUnlock?: (payload: PdfUnlockPayload) => Promise<PdfUnlockResult>;
-
-  // Photo Studio Native IPC
-  photoOpenFile?: (requestedPath?: string) => Promise<PhotoOpenResult>;
-  photoSaveFile?: (payload: PhotoSavePayload) => Promise<PhotoSaveResult>;
-  photoExportFile?: (payload: {
-    dataUrl: string;
-    defaultName?: string;
-    format?: string;
-    quality?: number;
-    adjustments?: Record<string, number>;
-  }) => Promise<PhotoSaveResult>;
-  photoApplyTone?: (payload: {
-    dataUrl?: string;
-    filePath?: string;
-    params: {
-      brightness: number;
-      contrast: number;
-      saturation: number;
-      warmth: number;
-      highlights: number;
-      shadows: number;
-      vignette: number;
-    };
-  }) => Promise<string>;
-  photoRefineCutout?: (payload: {
-    imageDataUrl: string;
-    maskDataUrl: string;
-    choke?: number;
-    feather?: number;
-  }) => Promise<string>;
-  photoInpaint?: (payload: {
-    imageDataUrl: string;
-    maskDataUrl: string;
-    radius?: number;
-  }) => Promise<string>;
-  photoGetDirectory?: () => Promise<string>;
-  photoDeleteWorkingCopy?: (filePath: string) => Promise<boolean>;
-  photoGetThumbnail?: (filePath: string) => Promise<string | null>;
-  photoRevertToOriginal?: (workingPath: string) => Promise<PhotoOpenResult>;
 
   // Hub Recent Files & Disk Management IPC
   getRecentFiles: () => Promise<RecentFileRecord[]>;

@@ -5,7 +5,6 @@ import { ToolWindowView } from '@/components/tool/ToolWindowView';
 import { DocsContainer } from '@/components/docs/DocsContainer';
 import { WhiteboardContainer } from '@/components/whiteboard/WhiteboardContainer';
 import { PdfContainer } from '@/components/pdf/PdfContainer';
-import { PhotoContainer } from '@/components/photo/PhotoContainer';
 
 export const App: React.FC = () => {
   // Determine if this window instance is dedicated to a specific tool
@@ -34,9 +33,6 @@ export const App: React.FC = () => {
     }
     if (currentToolId === 'pdf') {
       return <PdfContainer />;
-    }
-    if (currentToolId === 'photo') {
-      return <PhotoContainer />;
     }
     return <ToolWindowView toolId={currentToolId} />;
   }

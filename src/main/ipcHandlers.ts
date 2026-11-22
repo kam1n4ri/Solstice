@@ -10,8 +10,6 @@ import { registerPdfToolHandlers } from './pdfToolHandlers';
 import { registerPdfConvertHandlers } from './pdfConvertHandlers';
 import { registerPdfStampHandlers } from './pdfStampHandlers';
 import { registerPdfSecurityHandlers } from './pdfSecurityHandlers';
-import { registerPhotoFileHandlers } from './photoFileHandlers';
-import { unmapPhotoWorkingCopy } from './photoWorkingCopyHelper';
 import { recentFilesStore } from './recentFilesStore';
 import { fontManager } from './fontManager';
 
@@ -24,7 +22,6 @@ export function registerIpcHandlers(): void {
   registerPdfConvertHandlers();
   registerPdfStampHandlers();
   registerPdfSecurityHandlers();
-  registerPhotoFileHandlers();
 
   // Reveal item in native file explorer
   ipcMain.handle('reveal-in-folder', async (_event, filePath: string): Promise<boolean> => {
@@ -59,7 +56,6 @@ export function registerIpcHandlers(): void {
       try {
         const normalized = path.normalize(filePath);
         await recentFilesStore.removeRecentFile(normalized);
-        await unmapPhotoWorkingCopy(normalized);
         if (fs.existsSync(normalized)) {
           try {
             await shell.trashItem(normalized);
@@ -83,7 +79,6 @@ export function registerIpcHandlers(): void {
       const normalized = path.normalize(filePath);
       await recentFilesStore.removeRecentFile(normalized);
       if (deleteFromDisk) {
-        await unmapPhotoWorkingCopy(normalized);
         if (fs.existsSync(normalized)) {
           try {
             await shell.trashItem(normalized);
