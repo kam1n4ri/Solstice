@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { SolsticeAPI } from '@shared/types/api';
 import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
 import { toByteArray } from './byteUtils';
+import { tauriPdfBridge } from './pdf/tauriPdfBridge';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -182,87 +183,8 @@ export function initTauriBridge(): void {
       }
     },
 
-    // Native PDF File & Offline Tools IPC
-    pdfOpenFile: async (filePath?: string) => {
-      const res = await invoke<any>('pdf_open_file', { filePath });
-      if (res.data && Array.isArray(res.data)) {
-        res.data = new Uint8Array(res.data);
-      }
-      return res;
-    },
-
-    pdfSaveFile: async (payload) => {
-      const data = toByteArray(payload.data);
-      return await invoke('pdf_save_file', {
-        payload: {
-          filePath: payload.filePath,
-          fileName: payload.fileName,
-          title: payload.title,
-          data,
-        },
-      });
-    },
-
-    pdfReadFile: async (filePath: string) => {
-      const res = await invoke<any>('pdf_read_file', { filePath });
-      if (res.data && Array.isArray(res.data)) {
-        res.data = new Uint8Array(res.data);
-      }
-      return res;
-    },
-
-    pdfCreateWorkingCopy: async (payload) => {
-      if (payload.sourcePath) {
-        return await api.pdfOpenFile!(payload.sourcePath);
-      }
-      if (payload.data) {
-        const data = toByteArray(payload.data);
-        const saveRes = await invoke<any>('pdf_save_file', {
-          payload: {
-            fileName: payload.fileName || 'Untitled-Note.pdf',
-            data,
-          },
-        });
-        if (saveRes.success && saveRes.filePath) {
-          return await api.pdfOpenFile!(saveRes.filePath);
-        }
-      }
-      return { success: false, error: 'Failed to create working copy' };
-    },
-
-    pdfRenameFile: async (payload) => {
-      return await invoke('pdf_rename_file', { payload });
-    },
-
-    pdfExportFile: async (payload) => {
-      const data = toByteArray(payload.data);
-      return await invoke('pdf_export_file', {
-        data,
-        defaultName: payload.defaultName,
-      });
-    },
-
-    pdfPrint: async () => {
-      window.print();
-      return { success: true };
-    },
-
-    pdfSelectFiles: async (options) => {
-      return await invoke('pdf_select_files', { options });
-    },
-
-    pdfSelectImages: async () => {
-      const filePaths = await invoke<string[]>('pdf_select_images');
-      return { canceled: filePaths.length === 0, filePaths };
-    },
-
-    pdfSaveFilesToFolder: async (payload) => {
-      const files = payload.files.map((f) => ({
-        fileName: f.fileName,
-        data: toByteArray(f.data),
-      }));
-      return await invoke('pdf_save_files_to_folder', { files });
-    },
+    // Native PDF File & Offline Tools IPC (Spread modular bridge)
+    ...tauriPdfBridge,
 
     revealInFolder: async (filePath: string) => {
       try {

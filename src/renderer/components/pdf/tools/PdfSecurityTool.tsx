@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
-import {
-  Lock,
-  Unlock,
-  Shield,
-  FileText,
-  FolderOpen,
-  ArrowLeft,
-  AlertCircle,
-} from 'lucide-react';
+import { Lock, Unlock, FileText, AlertCircle } from 'lucide-react';
 import { ActivePdfDocument } from '../PdfContainer';
 import { PdfSecurityResultView } from './PdfSecurityResultView';
 import { PdfProtectForm, PdfUnlockForm } from './PdfSecurityForms';
+import { PdfSecurityEmptyState } from './PdfSecurityEmptyState';
+import { PdfSecurityHeader } from './PdfSecurityHeader';
 
 interface PdfSecurityToolProps {
   onClose: () => void;
@@ -24,9 +18,9 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
   currentDocument,
 }) => {
   const [tab, setTab] = useState<'protect' | 'unlock'>('protect');
-  const [filePath, setFilePath] = useState<string | null>(currentDocument?.filePath || null);
-  const [fileData, setFileData] = useState<Uint8Array | null>(currentDocument?.data || null);
-  const [fileName, setFileName] = useState<string>(currentDocument?.fileName || '');
+  const [filePath, setFilePath] = useState<string | null>(null);
+  const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const [fileName, setFileName] = useState<string>('');
 
   // Protect fields
   const [password, setPassword] = useState('');
@@ -42,6 +36,14 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
     fileName: string;
     data?: Uint8Array;
   } | null>(null);
+
+  const handleUseCurrentDocument = () => {
+    if (!currentDocument) return;
+    setFilePath(currentDocument.filePath);
+    setFileData(currentDocument.data);
+    setFileName(currentDocument.fileName);
+    setError(null);
+  };
 
   const handleSelectFile = async () => {
     try {
@@ -78,7 +80,7 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
         setFileName(file.name);
         setFilePath(null);
         setError(null);
-      } catch (err) {
+      } catch {
         setError('Failed to read dropped PDF file.');
       }
     }
@@ -112,7 +114,7 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
 
       if (res.success && res.filePath) {
         setResult({
-          msg: `Document encrypted with AES-256 security!`,
+          msg: 'Document encrypted with AES-256 security!',
           filePath: res.filePath,
           fileName: res.fileName || `Protected_${fileName || 'document.pdf'}`,
         });
@@ -145,7 +147,7 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
 
       if (res.success && res.filePath) {
         setResult({
-          msg: `Security restrictions removed! Document can now be opened without passwords.`,
+          msg: 'Security restrictions removed! Document can now be opened without passwords.',
           filePath: res.filePath,
           fileName: res.fileName || `Unlocked_${fileName || 'document.pdf'}`,
           data: res.data ? new Uint8Array(res.data) : undefined,
@@ -162,40 +164,13 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fafbfc] flex flex-col font-sans select-none animate-in fade-in duration-150 overflow-hidden">
-      {/* Top Header */}
-      <div className="h-12 px-6 border-b border-stone-200/80 bg-white/90 backdrop-blur-md flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-stone-100 transition-colors cursor-pointer"
-            title="Back to Studio (Esc)"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-800">PDF Security & Encryption</span>
-            {fileName && (
-              <>
-                <span className="text-xs text-slate-400">·</span>
-                <span className="text-xs font-medium text-slate-500 truncate max-w-sm">{fileName}</span>
-              </>
-            )}
-          </div>
-        </div>
+      <PdfSecurityHeader
+        onClose={onClose}
+        fileName={fileName}
+        hasFile={Boolean(fileData)}
+        onSelectFile={handleSelectFile}
+      />
 
-        {fileData && (
-          <button
-            onClick={handleSelectFile}
-            className="px-3 py-1.5 rounded-xl border border-stone-200/80 hover:bg-stone-50 text-xs font-medium text-slate-700 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
-            <span>Upload Different PDF</span>
-          </button>
-        )}
-      </div>
-
-      {/* Main Body */}
       {result ? (
         <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
           <div className="w-full max-w-md bg-white rounded-2xl border border-stone-200/90 shadow-xl p-6">
@@ -214,47 +189,19 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
           </div>
         </div>
       ) : !fileData ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-            onClick={handleSelectFile}
-            className={`w-full max-w-2xl border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 ${
-              isDragOver
-                ? 'border-rose-400 bg-rose-50/40 scale-[1.01]'
-                : 'border-stone-300/80 bg-white/70 hover:border-rose-300 hover:bg-rose-50/20'
-            }`}
-          >
-            <div className="w-16 h-16 rounded-3xl bg-rose-50/80 border border-rose-100 text-rose-500 flex items-center justify-center mb-4 shadow-2xs">
-              <Shield className="w-8 h-8" />
-            </div>
-
-            <h3 className="text-lg font-bold text-stone-800">Select PDF to Protect or Unlock</h3>
-            <p className="text-xs text-stone-500 mt-1.5 max-w-md">
-              Drag and drop your PDF here, or click to upload. Apply industry-standard AES-256 encryption, or permanently strip existing restrictions.
-            </p>
-
-            {error && (
-              <div className="mt-4 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-1.5 text-left">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="mt-6 px-5 py-2.5 rounded-2xl bg-rose-50/90 border border-rose-200/80 hover:bg-rose-100/90 text-rose-800 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <FolderOpen className="w-4 h-4" />
-              <span>Upload PDF Document</span>
-            </button>
-          </div>
-        </div>
+        <PdfSecurityEmptyState
+          onSelectFile={handleSelectFile}
+          onDrop={handleDrop}
+          isDragOver={isDragOver}
+          setIsDragOver={setIsDragOver}
+          error={error}
+          currentDocument={currentDocument}
+          onUseCurrentDocument={handleUseCurrentDocument}
+        />
       ) : (
         <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
           <div className="w-full max-w-lg bg-white rounded-2xl border border-stone-200/90 shadow-xl p-6 space-y-4">
-            {/* Mode Toggle Bar: Protect vs Unlock */}
+            {/* Mode Switcher */}
             <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-100/80 border border-stone-200/60">
               <button
                 type="button"
