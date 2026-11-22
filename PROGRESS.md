@@ -16,6 +16,7 @@
   - [x] Implemented Rust commands in `src-tauri/src/commands.rs` (`open_tool_window`, `get_active_tools`, `get_app_version`, `photo_open_file`, etc.)
   - [x] Compiled native desktop binary `target/debug/solstice-native` in pure Rust with code 0
 - [x] **Step 3: Live Verification & Testing (`npm run tauri:dev`)**
+  - [x] **Multi-Window Lifecycle Sync**: Resolved Tauri window tracking issue where Hub cards remained stuck in "Running / Focus" after tool windows closed. Added `on_window_event` listener (`Destroyed` & `CloseRequested`) in Rust, real-time `@tauri-apps/api/event` listening in `tauriBridge.ts`, and auto-reconciliation on window focus and heartbeat interval in `HubView.tsx`.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

@@ -15,14 +15,21 @@ export const HubView: React.FC = () => {
   const [activeTools, setActiveTools] = useState<ToolId[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Sync active windows on startup and subscribe to IPC state changes
+  // Sync active windows on startup, on window focus, and subscribe to IPC state changes
   useEffect(() => {
-    if (window.solsticeAPI?.getActiveTools) {
-      window.solsticeAPI.getActiveTools().then(setActiveTools).catch(console.error);
-    }
+    const syncActiveTools = () => {
+      if (window.solsticeAPI?.getActiveTools) {
+        window.solsticeAPI.getActiveTools().then(setActiveTools).catch(console.error);
+      }
+    };
 
+    syncActiveTools();
+    window.addEventListener('focus', syncActiveTools);
+    const interval = setInterval(syncActiveTools, 1500);
+
+    let unsubscribe: (() => void) | undefined;
     if (window.solsticeAPI?.onToolWindowStateChanged) {
-      const unsubscribe = window.solsticeAPI.onToolWindowStateChanged((state) => {
+      unsubscribe = window.solsticeAPI.onToolWindowStateChanged((state) => {
         setActiveTools((prev) => {
           if (state.isOpen && !prev.includes(state.toolId)) {
             return [...prev, state.toolId];
@@ -32,8 +39,13 @@ export const HubView: React.FC = () => {
           return prev;
         });
       });
-      return unsubscribe;
     }
+
+    return () => {
+      window.removeEventListener('focus', syncActiveTools);
+      clearInterval(interval);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleLaunchTool = useCallback(async (toolId: ToolId, initialPath?: string) => {

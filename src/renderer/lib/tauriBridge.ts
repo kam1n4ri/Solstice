@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { SolsticeAPI } from '@shared/types/api';
-import { ToolId, WindowOpenResult } from '@shared/types';
+import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -19,7 +20,9 @@ export function initTauriBridge(): void {
           toolId,
           initialPath,
         });
-        if (!activeTools.includes(toolId)) activeTools.push(toolId);
+        if (res.success && !activeTools.includes(toolId)) {
+          activeTools.push(toolId);
+        }
         return res;
       } catch (err) {
         // Fallback for single-window / web routing
@@ -31,15 +34,51 @@ export function initTauriBridge(): void {
 
     getActiveTools: async (): Promise<ToolId[]> => {
       try {
-        return await invoke<ToolId[]>('get_active_tools');
+        const tools = await invoke<ToolId[]>('get_active_tools');
+        activeTools.length = 0;
+        activeTools.push(...tools);
+        return tools;
       } catch {
-        return activeTools;
+        return [...activeTools];
       }
     },
 
-    onToolWindowStateChanged: (_callback) => {
-      // Event listener placeholder; returns unsubscribe function
-      return () => {};
+    onToolWindowStateChanged: (callback: (state: WindowStateInfo) => void) => {
+      let isUnsubscribed = false;
+      let unlistenFn: (() => void) | null = null;
+
+      listen<WindowStateInfo>('tool-window-state-changed', (event) => {
+        if (!isUnsubscribed) {
+          const payload = event.payload;
+          if (payload.isOpen) {
+            if (!activeTools.includes(payload.toolId)) {
+              activeTools.push(payload.toolId);
+            }
+          } else {
+            const idx = activeTools.indexOf(payload.toolId);
+            if (idx !== -1) {
+              activeTools.splice(idx, 1);
+            }
+          }
+          callback(payload);
+        }
+      }).then((unlisten) => {
+        if (isUnsubscribed) {
+          unlisten();
+        } else {
+          unlistenFn = unlisten;
+        }
+      }).catch((err) => {
+        console.warn('Failed to listen to tool-window-state-changed:', err);
+      });
+
+      return () => {
+        isUnsubscribed = true;
+        if (unlistenFn) {
+          unlistenFn();
+          unlistenFn = null;
+        }
+      };
     },
 
     getAppVersion: async (): Promise<string> => {
