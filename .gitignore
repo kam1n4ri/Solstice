@@ -1,8 +1,27 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 dist-electron/
 target/
-archive/electron/node_modules/
-archive/electron/dist/
-.DS_Store
+src-tauri/target/
+
+# TypeScript cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# AI & Agent local metadata
+.agents/
+skills-lock.json
+
+# Logs & System files
 *.log
+.DS_Store
+Thumbs.db
+
+# Local environment & caches
+.env
+.env.local
+*.local
+archive/
