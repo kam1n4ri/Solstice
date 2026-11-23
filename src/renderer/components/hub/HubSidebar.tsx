@@ -87,13 +87,11 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
               <RefreshCw className={cn("h-4 w-4", activeView === 'updates' ? "text-primary" : "")} />
               <span>Updates</span>
             </div>
-            {hasUnseenUpdate ? (
-              <span className="relative flex h-2 w-2 mr-1">
+            {hasUnseenUpdate && (
+              <span className="relative flex h-1.5 w-1.5 mr-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
               </span>
-            ) : (
-              <span className="text-[10px] text-outline/60 font-mono">v0.1</span>
             )}
           </button>
         </nav>

@@ -13,15 +13,15 @@ export const CURRENT_APP_VERSION = 'v0.1.0';
 export const INITIAL_RELEASE_HISTORY: ReleaseNote[] = [
   {
     version: 'v0.1.0',
-    title: 'Solstice Genesis — Native Suite Foundation',
-    releaseDate: 'November 2026',
-    summary: 'The inaugural native desktop release of Solstice powered by Tauri v2 and Rust.',
+    title: 'Initial Desktop Suite',
+    releaseDate: 'Nov 2026',
+    summary: 'Initial release featuring Docs, PDF tools, Whiteboard, and Font management on Tauri v2.',
     highlights: [
-      'Solstice Hub: Multi-window desktop manager with triple-disk recents discovery across documents, PDFs, and sketches.',
-      'Solstice Docs: Native binary Word (.docx) pipeline, Markdown/HTML conversion, outline navigation, and auto-save.',
-      'Solstice PDF: Complete reader with 9 offline tools including Protect & Unlock (AES-256), Merge, Split, and Image conversion.',
-      'Solstice Whiteboard: Native file engine auto-saving sketches to ~/Documents/Solstice/Whiteboards/ with multi-format export.',
-      'Typography Studio: Google Fonts downloader and local font importer (.ttf/.otf/.woff2) with suite-wide live synchronization.',
+      'Hub: Multi-window launcher with triple-disk recents discovery across documents, PDFs, and sketches.',
+      'Docs: Native Word (.docx) pipeline, Markdown and HTML import/export, outline navigation, and auto-save.',
+      'PDF: Document reader with 9 offline tools (Merge, Split, Organize, Watermark, Numbers, Protect, Unlock, Image conversion).',
+      'Whiteboard: Sketching canvas with auto-save to ~/Documents/Solstice/Whiteboards/ and multi-format export.',
+      'Fonts: Google Fonts downloader and local font importer with live suite synchronization.',
     ],
     htmlUrl: 'https://github.com/kam1n4ri/Solstice/releases',
   },

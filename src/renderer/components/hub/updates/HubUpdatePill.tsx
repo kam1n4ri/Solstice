@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ExternalLink, Sparkles, Check } from 'lucide-react';
+import { ChevronDown, ArrowUpRight } from 'lucide-react';
 import { CURRENT_APP_VERSION, ReleaseNote, compareVersions } from '@/lib/hub/updatesService';
 
 interface HubUpdatePillProps {
@@ -21,101 +21,88 @@ export const HubUpdatePill: React.FC<HubUpdatePillProps> = ({
 
   return (
     <div
-      className={`w-full rounded-2xl border transition-all duration-200 overflow-hidden ${
+      className={`w-full rounded-xl border transition-colors duration-150 overflow-hidden ${
         isOpen
           ? 'bg-surface-container-lowest border-outline-variant/50 shadow-2xs'
-          : 'bg-surface-container-lowest/80 border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-lowest'
+          : 'bg-surface-container-lowest/60 border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-lowest'
       }`}
     >
-      {/* Clickable Header Row / Pill */}
+      {/* Clickable Header Row */}
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer transition-colors"
       >
-        <div className="flex items-center gap-3.5 flex-wrap flex-1 min-w-0 pr-4">
-          {/* Version badge */}
-          <span className="font-mono text-sm font-semibold tracking-tight text-on-surface">
+        <div className="flex items-center gap-3 min-w-0 pr-4">
+          <span className="font-mono text-xs font-semibold text-on-surface">
             {release.version}
           </span>
 
-          {/* Release title */}
-          <span className="text-xs font-medium text-on-surface-variant truncate max-w-md">
+          <span className="text-xs text-on-surface-variant truncate">
             {release.title}
           </span>
 
-          {/* Status badge */}
           {isInstalled ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50/70 text-emerald-800 border border-emerald-200/60">
-              <Check className="h-3 w-3 text-emerald-600" />
-              Installed
+            <span className="text-[10px] font-medium text-outline px-1.5 py-0.5 rounded bg-surface-container/60">
+              Current
             </span>
           ) : isNewer ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50/70 text-blue-700 border border-blue-200/60">
-              <Sparkles className="h-3 w-3 text-blue-500 animate-pulse" />
-              Newer Release
+            <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded bg-blue-50/70 dark:bg-blue-950/40">
+              New
             </span>
-          ) : (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-container-high/60 text-outline">
-              Previous Version
-            </span>
-          )}
+          ) : null}
         </div>
 
-        {/* Date and expand chevron */}
         <div className="flex items-center gap-3 shrink-0">
           <span className="text-[11px] text-outline font-mono hidden sm:inline">
             {release.releaseDate}
           </span>
-          <div
-            className={`p-1 rounded-lg text-on-surface-variant transition-transform duration-200 ${
-              isOpen ? 'rotate-180 bg-surface-container/60 text-on-surface' : ''
+          <ChevronDown
+            className={`h-3.5 w-3.5 text-on-surface-variant transition-transform duration-200 ease-out ${
+              isOpen ? 'rotate-180 text-on-surface' : ''
             }`}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </div>
+          />
         </div>
       </button>
 
-      {/* Accordion Expandable Content */}
-      {isOpen && (
-        <div className="px-5 pb-5 pt-1 border-t border-surface-container/60 space-y-3.5 animate-in fade-in-50 duration-150">
-          <p className="text-xs text-on-surface-variant/90 leading-relaxed">
-            {release.summary}
-          </p>
+      {/* Smooth Animated Accordion Drawer */}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4 pt-2 border-t border-surface-container/50 space-y-3">
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              {release.summary}
+            </p>
 
-          {/* Bullet points */}
-          {release.highlights && release.highlights.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[11px] font-semibold tracking-wider text-outline uppercase block">
-                What's New &amp; Improved
-              </span>
-              <ul className="space-y-1.5 pl-1">
+            {release.highlights && release.highlights.length > 0 && (
+              <ul className="space-y-1.5 pt-1 pl-1">
                 {release.highlights.map((point, idx) => (
                   <li key={idx} className="flex items-start gap-2 text-xs text-on-surface/90">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0 mt-1.5" />
+                    <span className="h-1 w-1 rounded-full bg-outline/60 shrink-0 mt-2" />
                     <span>{point}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            )}
 
-          {/* Footer action if external link exists */}
-          {release.htmlUrl && (
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => onOpenUrl(release.htmlUrl!)}
-                className="inline-flex items-center gap-1.5 text-xs text-primary/90 hover:text-primary transition-colors cursor-pointer"
-              >
-                <span>View release details on GitHub</span>
-                <ExternalLink className="h-3 w-3" />
-              </button>
-            </div>
-          )}
+            {release.htmlUrl && (
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onOpenUrl(release.htmlUrl!)}
+                  className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                >
+                  <span>Release notes on GitHub</span>
+                  <ArrowUpRight className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
