@@ -47,7 +47,7 @@ export const HubFilesView: React.FC<HubFilesViewProps> = ({ onLaunchTool }) => {
   const handleDelete = async (filePath: string) => {
     if (!window.solsticeAPI?.deleteFile) return;
     const confirmDelete = window.confirm(
-      'Are you sure you want to delete this file? It will be moved to your system trash.'
+      'Are you sure you want to delete this file? This will remove the file from your computer.'
     );
     if (!confirmDelete) return;
 

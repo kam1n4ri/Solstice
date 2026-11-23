@@ -6,7 +6,7 @@ import { DocsView } from './DocsView';
 export const DocsContainer: React.FC = () => {
   const [activeDoc, setActiveDoc] = useState<DocsOpenPayload | null>(null);
   const urlParams = new URLSearchParams(window.location.search);
-  const initialFilePath = urlParams.get('filePath');
+  const initialFilePath = urlParams.get('filePath') || urlParams.get('file') || urlParams.get('path');
   const [isColdLoading, setIsColdLoading] = useState<boolean>(Boolean(initialFilePath));
   const [coldLoadError, setColdLoadError] = useState<string | null>(null);
 

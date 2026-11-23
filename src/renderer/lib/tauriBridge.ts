@@ -30,7 +30,8 @@ export function initTauriBridge(): void {
         return res;
       } catch (err) {
         // Fallback for single-window / web routing
-        const targetUrl = `/?tool=${encodeURIComponent(toolId)}${initialPath ? `&file=${encodeURIComponent(initialPath)}` : ''}`;
+        const enc = initialPath ? encodeURIComponent(initialPath) : '';
+        const targetUrl = `/?tool=${encodeURIComponent(toolId)}${initialPath ? `&filePath=${enc}&file=${enc}` : ''}`;
         window.location.href = targetUrl;
         return { success: true, toolId };
       }
@@ -208,6 +209,67 @@ export function initTauriBridge(): void {
         await invoke('delete_file', { filePath }).catch(() => {});
       }
       return true;
+    },
+
+    onOpenFileRequested: (callback: (filePath: string) => void) => {
+      let isUnsubscribed = false;
+      let unlistenFn: (() => void) | null = null;
+
+      listen<string>('open-file-requested', (event) => {
+        if (!isUnsubscribed && event.payload) {
+          callback(event.payload);
+        }
+      })
+        .then((unlisten) => {
+          if (isUnsubscribed) unlisten();
+          else unlistenFn = unlisten;
+        })
+        .catch((err) => {
+          console.warn('Failed to listen to open-file-requested:', err);
+        });
+
+      return () => {
+        isUnsubscribed = true;
+        unlistenFn?.();
+      };
+    },
+
+    onSaveAndCloseRequested: (callback: () => void) => {
+      let isUnsubscribed = false;
+      let unlistenFn: (() => void) | null = null;
+
+      listen('save-and-close-requested', () => {
+        if (!isUnsubscribed) callback();
+      })
+        .then((unlisten) => {
+          if (isUnsubscribed) unlisten();
+          else unlistenFn = unlisten;
+        })
+        .catch((err) => {
+          console.warn('Failed to listen to save-and-close-requested:', err);
+        });
+
+      const handleBeforeUnload = () => {
+        if (!isUnsubscribed) callback();
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        isUnsubscribed = true;
+        unlistenFn?.();
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    },
+
+    openExternalUrl: async (url: string): Promise<boolean> => {
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(url);
+        return true;
+      } catch {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return true;
+      }
     },
   };
 

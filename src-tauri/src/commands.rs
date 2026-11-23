@@ -37,11 +37,14 @@ pub async fn open_tool_window(
 ) -> Result<WindowOpenResult, String> {
     let win_label = format!("tool-{}", tool_id);
 
-    // If window already exists, focus it
+    // If window already exists, focus it and emit file open request if provided
     if let Some(existing_window) = app.get_webview_window(&win_label) {
         let _ = existing_window.unminimize();
         let _ = existing_window.show();
         let _ = existing_window.set_focus();
+        if let Some(ref path) = initial_path {
+            let _ = existing_window.emit("open-file-requested", path);
+        }
         return Ok(WindowOpenResult {
             success: true,
             tool_id,
@@ -49,9 +52,12 @@ pub async fn open_tool_window(
         });
     }
 
-    // Build URL query string
+    // Build URL query string (provide both filePath and file for universal compatibility)
     let url_str = match initial_path {
-        Some(path) => format!("/?tool={}&file={}", tool_id, urlencoding::encode(&path)),
+        Some(path) => {
+            let enc = urlencoding::encode(&path);
+            format!("/?tool={}&filePath={}&file={}", tool_id, enc, enc)
+        }
         None => format!("/?tool={}", tool_id),
     };
 

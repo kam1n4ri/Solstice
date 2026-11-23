@@ -29,10 +29,10 @@ export const PdfContainer: React.FC = () => {
   const [currentDocument, setCurrentDocument] = useState<ActivePdfDocument | null>(null);
   const [activeTool, setActiveTool] = useState<ActivePdfTool>(null);
 
-  // Check URL query parameters for initial file path (?filePath=... or ?path=...)
+  // Check URL query parameters for initial file path (?filePath=... or ?path=... or ?file=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const initialPath = params.get('filePath') || params.get('path');
+    const initialPath = params.get('filePath') || params.get('file') || params.get('path');
     if (initialPath && window.solsticeAPI?.pdfOpenFile) {
       window.solsticeAPI.pdfOpenFile(initialPath).then((res) => {
         if (res.success && res.data && res.filePath) {

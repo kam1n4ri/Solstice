@@ -11,7 +11,8 @@ const WhiteboardViewLazy = lazy(() =>
 export const WhiteboardContainer: React.FC = () => {
   const [activeBoard, setActiveBoard] = useState<WhiteboardInitialData | null>(null);
   const initialFilePath = useMemo(() => {
-    return new URLSearchParams(window.location.search).get('filePath');
+    const params = new URLSearchParams(window.location.search);
+    return params.get('filePath') || params.get('file') || params.get('path');
   }, []);
   const [isColdLoading, setIsColdLoading] = useState<boolean>(Boolean(initialFilePath));
   const [coldLoadError, setColdLoadError] = useState<string | null>(null);
