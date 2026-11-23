@@ -63,6 +63,10 @@
     - **Live Window File Switching**: Added `open-file-requested` Tauri event emission on existing windows so selecting a recent file in the Hub switches and loads the document immediately if the tool window is already open.
     - **Cross-Platform Shell Bridge**: Added `openExternalUrl` via `@tauri-apps/plugin-shell` with browser fallback in `tauriBridge.ts`.
     - **File Length & Code Discipline**: Verified all source files strictly conform to the `< 250–300 lines of code` threshold.
+  - [x] **Hub Updates & Release Radar Engine (Phase 4)**:
+    - **In-App Release Accordion**: Implemented `HubUpdatesView.tsx`, `HubUpdatePill.tsx`, and `HubUpdatesHero.tsx` with single-expand accordion pills showing full changelogs, highlights, and external release links.
+    - **Unread Notification Glow**: Added subtle pulsing indicator on the Hub sidebar `Updates` tab when a newer version is detected on GitHub.
+    - **Offline & GitHub Releases Fallback**: `updatesService.ts` queries the official GitHub Releases API (`https://api.github.com/repos/kam1n4ri/Solstice/releases`) with persistent caching and offline fallback for air-gapped environments.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)

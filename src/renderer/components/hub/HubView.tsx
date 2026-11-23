@@ -7,13 +7,25 @@ import { AppGrid } from './AppGrid';
 import { HubSettingsModal } from './settings/HubSettingsModal';
 import { HubFontView } from './fonts/HubFontView';
 import { HubFilesView } from './files/HubFilesView';
+import { HubUpdatesView } from './updates/HubUpdatesView';
+import { fetchGitHubReleases, checkHasUnseenUpdate } from '@/lib/hub/updatesService';
 
 export const HubView: React.FC = () => {
-  const [activeView, setActiveView] = useState<'apps' | 'files' | 'fonts'>('apps');
+  const [activeView, setActiveView] = useState<'apps' | 'files' | 'fonts' | 'updates'>('apps');
   const [selectedCategory, setSelectedCategory] = useState<ToolCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTools, setActiveTools] = useState<ToolId[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasUnseenUpdate, setHasUnseenUpdate] = useState<boolean>(false);
+
+  // Check for unseen updates on initial load
+  useEffect(() => {
+    fetchGitHubReleases().then((releases) => {
+      if (releases.length > 0) {
+        setHasUnseenUpdate(checkHasUnseenUpdate(releases[0].version));
+      }
+    }).catch(() => {});
+  }, []);
 
   // Sync active windows on startup, on window focus, and subscribe to IPC state changes
   useEffect(() => {
@@ -127,6 +139,7 @@ export const HubView: React.FC = () => {
         activeCountsByCategory={activeCountsByCategory}
         activeView={activeView}
         onSelectView={setActiveView}
+        hasUnseenUpdate={hasUnseenUpdate}
       />
 
       {/* Main Content Area offset by 64 (w-64 sidebar) */}
@@ -139,7 +152,9 @@ export const HubView: React.FC = () => {
         />
 
         <main className="w-full pt-14 bg-surface flex-1">
-          {activeView === 'fonts' ? (
+          {activeView === 'updates' ? (
+            <HubUpdatesView onUpdateSeen={() => setHasUnseenUpdate(false)} />
+          ) : activeView === 'fonts' ? (
             <HubFontView />
           ) : activeView === 'files' ? (
             <HubFilesView onLaunchTool={handleLaunchTool} />

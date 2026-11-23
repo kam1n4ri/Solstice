@@ -14,8 +14,9 @@ interface HubSidebarProps {
   currentCategory: ToolCategory;
   onSelectCategory: (cat: ToolCategory) => void;
   activeCountsByCategory: Record<ToolCategory, number>;
-  activeView: 'apps' | 'files' | 'fonts';
-  onSelectView: (view: 'apps' | 'files' | 'fonts') => void;
+  activeView: 'apps' | 'files' | 'fonts' | 'updates';
+  onSelectView: (view: 'apps' | 'files' | 'fonts' | 'updates') => void;
+  hasUnseenUpdate?: boolean;
 }
 
 export const HubSidebar: React.FC<HubSidebarProps> = ({
@@ -24,6 +25,7 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
   activeCountsByCategory,
   activeView,
   onSelectView,
+  hasUnseenUpdate = false,
 }) => {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-surface-container shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col">
@@ -73,14 +75,26 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
 
           <button
             type="button"
-            disabled
-            className="w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl text-outline-variant/60 cursor-not-allowed text-xs select-none"
+            onClick={() => onSelectView('updates')}
+            className={cn(
+              'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs cursor-pointer',
+              activeView === 'updates'
+                ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+            )}
           >
             <div className="flex items-center gap-space-sm">
-              <RefreshCw className="h-4 w-4 text-outline-variant/60" />
+              <RefreshCw className={cn("h-4 w-4", activeView === 'updates' ? "text-primary" : "")} />
               <span>Updates</span>
             </div>
-            <span className="text-[10px] text-outline/60 font-mono">Soon</span>
+            {hasUnseenUpdate ? (
+              <span className="relative flex h-2 w-2 mr-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+            ) : (
+              <span className="text-[10px] text-outline/60 font-mono">v0.1</span>
+            )}
           </button>
         </nav>
 
