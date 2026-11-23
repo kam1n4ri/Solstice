@@ -58,6 +58,11 @@
     - **Local Font Import & Google Fonts Downloader**: User can import `.ttf`, `.otf`, `.woff2` files via native OS dialog or download Google Fonts with regular and bold variants. Emits real-time `fonts-updated` event to synchronize font availability across Hub, Docs, and Whiteboard.
     - **Modular Font Bridge (`tauriFontBridge.ts`)**: Extracted font bridging into `src/renderer/lib/hub/tauriFontBridge.ts` (151 lines) and connected to `tauriBridge.ts`.
     - **Modular Discipline & Build Verification**: All files strictly `< 250–300 lines of code`. Verified 0 errors across `cargo check -p solstice-native` and `npm run build:renderer`.
+  - [x] **Suite-Wide Audit & Inter-Window Harmonization**:
+    - **Universal Document Handoff**: Standardized window launch query parameters across Rust backend and renderer (`?tool={}&filePath={}&file={}`) resolving parameter mismatch where Docs/Whiteboard dropped files from the Hub recents view.
+    - **Live Window File Switching**: Added `open-file-requested` Tauri event emission on existing windows so selecting a recent file in the Hub switches and loads the document immediately if the tool window is already open.
+    - **Cross-Platform Shell Bridge**: Added `openExternalUrl` via `@tauri-apps/plugin-shell` with browser fallback in `tauriBridge.ts`.
+    - **File Length & Code Discipline**: Verified all source files strictly conform to the `< 250–300 lines of code` threshold.
 - [ ] **Step 4: Solstice Photo From-Scratch Rebuild (Pending Design Spec)**
   - [x] Removed legacy half-baked Photo prototype, AI model dependencies, and tangled helper code (backed up on `backup/photo-legacy`)
   - [ ] Ground-up architecture design (clean viewport, rock-solid crop/transform, native SIMD tone engine, reliable layers)
