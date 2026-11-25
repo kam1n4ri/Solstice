@@ -1,21 +1,33 @@
 import { PDFDocument } from 'pdf-lib';
-import { PdfMergePayload, PdfMergeResult } from '@shared/types';
+import { PdfMergeInputFile, PdfMergePayload, PdfMergeResult } from '@shared/types';
 import { invoke } from '@tauri-apps/api/core';
 
 export async function executePdfMerge(payload: PdfMergePayload): Promise<PdfMergeResult> {
   try {
-    if (!payload.filePaths || payload.filePaths.length < 2) {
+    const inputs: PdfMergeInputFile[] = payload.files?.length
+      ? payload.files
+      : (payload.filePaths || []).map((filePath) => ({ filePath }));
+
+    if (inputs.length < 2) {
       return { success: false, error: 'At least 2 PDF files are required to merge.' };
     }
 
     const mergedDoc = await PDFDocument.create();
 
-    for (const filePath of payload.filePaths) {
-      const readRes = await invoke<any>('pdf_read_file', { filePath });
-      if (!readRes.success || !readRes.data) {
-        return { success: false, error: `Failed to read file: ${filePath}` };
+    for (const item of inputs) {
+      let fileBytes: Uint8Array;
+      if (item.fileData) {
+        fileBytes = new Uint8Array(item.fileData);
+      } else if (item.filePath) {
+        const readRes = await invoke<any>('pdf_read_file', { filePath: item.filePath });
+        if (!readRes.success || !readRes.data) {
+          return { success: false, error: `Failed to read file: ${item.filePath}` };
+        }
+        fileBytes = new Uint8Array(readRes.data);
+      } else {
+        return { success: false, error: `Missing file data for ${item.fileName || 'PDF'}` };
       }
-      const fileBytes = new Uint8Array(readRes.data);
+
       const srcDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
       const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
       copiedPages.forEach((page) => mergedDoc.addPage(page));

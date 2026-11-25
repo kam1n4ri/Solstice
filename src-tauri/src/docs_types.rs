@@ -19,6 +19,10 @@ pub struct DocsSavePayload {
     pub file_path: Option<String>,
     pub title: String,
     pub content: String,
+    #[serde(rename = "mdContent")]
+    pub md_content: Option<String>,
+    #[serde(rename = "txtContent")]
+    pub txt_content: Option<String>,
     pub format: Option<String>,
     #[serde(rename = "isSaveAs")]
     pub is_save_as: Option<bool>,
@@ -43,6 +47,7 @@ pub struct DocsAutoSavePayload {
     pub draft_id: Option<String>,
     pub title: String,
     pub content: String,
+    pub data: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

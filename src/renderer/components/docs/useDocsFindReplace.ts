@@ -22,6 +22,13 @@ export function useDocsFindReplace({
   const [caseSensitive, setCaseSensitive] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const currentIndexRef = useRef(0);
+  const isReplacingRef = useRef(false);
+
+  const updateCurrentIndex = useCallback((nextIdx: number) => {
+    currentIndexRef.current = nextIdx;
+    setCurrentIndex(nextIdx);
+  }, []);
 
   // Smoothly scroll active match into view without stealing keyboard focus
   const scrollToActiveMatch = useCallback((ed: Editor | null) => {
@@ -54,16 +61,16 @@ export function useDocsFindReplace({
       return;
     }
 
-    if (!searchTerm.trim()) {
+    if (!searchTerm) {
       setMatches([]);
-      setCurrentIndex(0);
+      updateCurrentIndex(0);
       (editor.commands as any).clearSearchHighlights?.();
       return;
     }
 
     const results = findMatchesInDoc(editor.state.doc, searchTerm, caseSensitive);
     setMatches(results);
-    setCurrentIndex(0);
+    updateCurrentIndex(0);
 
     if (results.length > 0) {
       (editor.commands as any).setSearchHighlights?.(results, 0);
@@ -71,29 +78,30 @@ export function useDocsFindReplace({
     } else {
       (editor.commands as any).clearSearchHighlights?.();
     }
-  }, [isOpen, editor, searchTerm, caseSensitive, scrollToActiveMatch]);
+  }, [isOpen, editor, searchTerm, caseSensitive, scrollToActiveMatch, updateCurrentIndex]);
 
   // Keep match positions synchronized with live document edits
   useEffect(() => {
     if (!editor || !isOpen) return;
 
     const handleTransaction = ({ transaction }: { transaction: any }) => {
-      if (!transaction.docChanged) return;
-      if (!searchTerm.trim()) {
+      if (!transaction.docChanged || isReplacingRef.current) return;
+      if (!searchTerm) {
         setMatches([]);
-        setCurrentIndex(0);
+        updateCurrentIndex(0);
         (editor.commands as any).clearSearchHighlights?.();
         return;
       }
 
       const updatedMatches = findMatchesInDoc(editor.state.doc, searchTerm, caseSensitive);
       setMatches(updatedMatches);
-      setCurrentIndex((prev) => (updatedMatches.length > 0 ? Math.min(prev, updatedMatches.length - 1) : 0));
 
       if (updatedMatches.length > 0) {
-        const nextIdx = Math.min(currentIndex, updatedMatches.length - 1);
+        const nextIdx = Math.min(currentIndexRef.current, updatedMatches.length - 1);
+        updateCurrentIndex(nextIdx);
         (editor.commands as any).setSearchHighlights?.(updatedMatches, nextIdx);
       } else {
+        updateCurrentIndex(0);
         (editor.commands as any).clearSearchHighlights?.();
       }
     };
@@ -102,7 +110,7 @@ export function useDocsFindReplace({
     return () => {
       editor.off('transaction', handleTransaction);
     };
-  }, [editor, isOpen, searchTerm, caseSensitive, currentIndex]);
+  }, [editor, isOpen, searchTerm, caseSensitive, updateCurrentIndex]);
 
   const handleClose = useCallback(() => {
     if (editor) {
@@ -113,53 +121,65 @@ export function useDocsFindReplace({
 
   const handleNext = () => {
     if (!editor || matches.length === 0) return;
-    const nextIndex = (currentIndex + 1) % matches.length;
-    setCurrentIndex(nextIndex);
+    const nextIndex = (currentIndexRef.current + 1) % matches.length;
+    updateCurrentIndex(nextIndex);
     (editor.commands as any).setSearchHighlights?.(matches, nextIndex);
     scrollToActiveMatch(editor);
   };
 
   const handlePrev = () => {
     if (!editor || matches.length === 0) return;
-    const prevIndex = (currentIndex - 1 + matches.length) % matches.length;
-    setCurrentIndex(prevIndex);
+    const prevIndex = (currentIndexRef.current - 1 + matches.length) % matches.length;
+    updateCurrentIndex(prevIndex);
     (editor.commands as any).setSearchHighlights?.(matches, prevIndex);
     scrollToActiveMatch(editor);
   };
 
   const handleReplaceCurrent = () => {
     if (!editor || matches.length === 0) return;
-    const target = matches[currentIndex];
+    const target = matches[currentIndexRef.current];
     if (!target) return;
 
-    const tr = editor.state.tr.insertText(replaceTerm, target.from, target.to);
-    editor.view.dispatch(tr);
+    isReplacingRef.current = true;
+    try {
+      const tr = editor.state.tr.insertText(replaceTerm, target.from, target.to);
+      editor.view.dispatch(tr);
+    } finally {
+      isReplacingRef.current = false;
+    }
 
+    const replaceEnd = target.from + replaceTerm.length;
     const newMatches = findMatchesInDoc(editor.state.doc, searchTerm, caseSensitive);
     setMatches(newMatches);
 
     if (newMatches.length > 0) {
-      const nextIdx = Math.min(currentIndex, newMatches.length - 1);
-      setCurrentIndex(nextIdx);
+      const nextAfterReplace = newMatches.findIndex((m) => m.from >= replaceEnd);
+      const nextIdx = nextAfterReplace !== -1 ? nextAfterReplace : 0;
+      updateCurrentIndex(nextIdx);
       (editor.commands as any).setSearchHighlights?.(newMatches, nextIdx);
       scrollToActiveMatch(editor);
     } else {
-      setCurrentIndex(0);
+      updateCurrentIndex(0);
       (editor.commands as any).clearSearchHighlights?.();
     }
   };
 
   const handleReplaceAll = () => {
     if (!editor || matches.length === 0) return;
-    let tr = editor.state.tr;
-    for (let i = matches.length - 1; i >= 0; i--) {
-      tr = tr.insertText(replaceTerm, matches[i].from, matches[i].to);
+    isReplacingRef.current = true;
+    try {
+      let tr = editor.state.tr;
+      for (let i = matches.length - 1; i >= 0; i--) {
+        tr = tr.insertText(replaceTerm, matches[i].from, matches[i].to);
+      }
+      editor.view.dispatch(tr);
+    } finally {
+      isReplacingRef.current = false;
     }
-    editor.view.dispatch(tr);
 
     const newMatches = findMatchesInDoc(editor.state.doc, searchTerm, caseSensitive);
     setMatches(newMatches);
-    setCurrentIndex(0);
+    updateCurrentIndex(0);
 
     if (newMatches.length > 0) {
       (editor.commands as any).setSearchHighlights?.(newMatches, 0);

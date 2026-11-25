@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Settings } from 'lucide-react';
+import { Search, Settings, X } from 'lucide-react';
 
 interface HubHeaderProps {
   searchQuery: string;
@@ -25,9 +25,19 @@ export const HubHeader: React.FC<HubHeaderProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search apps, tools, files..."
-              className="w-full h-[34px] pl-9 pr-space-sm rounded-xl bg-surface-container-lowest text-on-surface placeholder:text-outline text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] border border-outline-variant/30 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+              placeholder="Search apps & tools..."
+              className="w-full h-[34px] pl-9 pr-8 rounded-xl bg-surface-container-lowest text-on-surface placeholder:text-outline text-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] border border-outline-variant/30 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                aria-label="Clear search"
+                className="absolute right-2 p-0.5 rounded text-outline hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

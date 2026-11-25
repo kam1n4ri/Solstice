@@ -118,8 +118,8 @@ export const HubFontView: React.FC = () => {
           className={cn(
             'flex items-center gap-2.5 px-4 py-2.5 rounded-xl border mb-5 text-xs animate-in fade-in duration-200',
             feedback.type === 'success'
-              ? 'bg-emerald-50/90 border-emerald-200/70 text-emerald-800'
-              : 'bg-rose-50/90 border-rose-200/70 text-rose-800'
+              ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200/70 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300'
+              : 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200/70 dark:border-rose-800/50 text-rose-800 dark:text-rose-300'
           )}
         >
           {feedback.type === 'success' ? (
@@ -163,7 +163,7 @@ export const HubFontView: React.FC = () => {
             })}
           </div>
         ) : (
-          <div className="py-16 text-center text-slate-400 text-xs">
+          <div className="py-16 text-center text-on-surface-variant text-xs">
             No fonts matching your search or category filter.
           </div>
         )
@@ -193,7 +193,7 @@ export const HubFontView: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="py-16 text-center text-slate-400 text-xs">
+        <div className="py-16 text-center text-on-surface-variant text-xs">
           No fonts found matching your search or filter.
         </div>
       )}

@@ -15,7 +15,7 @@ export function findMatchesInDoc(
   searchTerm: string,
   caseSensitive = false
 ): MatchRange[] {
-  if (!searchTerm || !searchTerm.trim()) {
+  if (!searchTerm) {
     return [];
   }
 
@@ -37,6 +37,10 @@ export function findMatchesInDoc(
         } else if (child.type.name === 'hardBreak') {
           blockText += '\n';
           charPosMap.push(pos + 1 + offset);
+        } else {
+          // Sentinel prevents matching across inline non-text nodes (e.g. images)
+          blockText += '\uFFFC';
+          charPosMap.push(-1);
         }
       });
 
@@ -44,11 +48,14 @@ export function findMatchesInDoc(
       let idx = textToSearch.indexOf(query);
       while (idx !== -1) {
         const from = charPosMap[idx];
-        const to = charPosMap[idx + query.length - 1] + 1;
-        if (typeof from === 'number' && typeof to === 'number' && from < to) {
+        const toChar = charPosMap[idx + query.length - 1];
+        const to = typeof toChar === 'number' && toChar >= 0 ? toChar + 1 : -1;
+        if (typeof from === 'number' && from >= 0 && to > from) {
           results.push({ from, to });
+          idx = textToSearch.indexOf(query, idx + query.length);
+        } else {
+          idx = textToSearch.indexOf(query, idx + 1);
         }
-        idx = textToSearch.indexOf(query, idx + 1);
       }
       return false; // Inline children processed
     }

@@ -9,7 +9,15 @@ export function clean(s: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      const code = parseInt(hex, 16);
+      return Number.isNaN(code) ? _ : String.fromCodePoint(code);
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const code = parseInt(dec, 10);
+      return Number.isNaN(code) ? _ : String.fromCodePoint(code);
+    });
 }
 
 export function parseColor(str?: string): string | undefined {
@@ -58,26 +66,41 @@ export function getAlignment(tagHtml: string): Alignment | undefined {
   return undefined;
 }
 
+export function extractImgAttrs(imgTag: string): { src: string; alt: string } {
+  const srcMatch = imgTag.match(/\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+  const altMatch = imgTag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+  return {
+    src: srcMatch ? (srcMatch[1] ?? srcMatch[2] ?? '') : '',
+    alt: altMatch ? clean(altMatch[1] ?? altMatch[2] ?? '') : '',
+  };
+}
+
 export function tryParseImage(src: string): ImageRun | null {
   try {
-    const isJpg = src.includes('image/jpeg') || src.includes('image/jpg') || /\.jpe?g($|\?)/i.test(src);
-    const type: 'jpg' | 'png' = isJpg ? 'jpg' : 'png';
-    if (src.startsWith('data:image/')) {
-      const commaIdx = src.indexOf(',');
-      if (commaIdx !== -1) {
-        const base64Data = src.slice(commaIdx + 1);
-        const binary = atob(base64Data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        return new ImageRun({
-          type,
-          data: bytes,
-          transformation: { width: 400, height: 300 },
-        });
-      }
+    if (!src.startsWith('data:image/')) return null;
+    const headerEnd = src.indexOf(';base64,');
+    if (headerEnd === -1) return null;
+
+    const mime = src.slice(5, headerEnd).toLowerCase();
+    let type: 'jpg' | 'png' | 'gif' | 'bmp';
+    if (mime === 'image/jpeg' || mime === 'image/jpg') type = 'jpg';
+    else if (mime === 'image/png') type = 'png';
+    else if (mime === 'image/gif') type = 'gif';
+    else if (mime === 'image/bmp') type = 'bmp';
+    else return null;
+
+    const base64Data = src.slice(headerEnd + 8).replace(/\s+/g, '');
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
     }
-  } catch {}
-  return null;
+    return new ImageRun({
+      type,
+      data: bytes,
+      transformation: { width: 400, height: 300 },
+    });
+  } catch {
+    return null;
+  }
 }

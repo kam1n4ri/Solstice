@@ -5,12 +5,14 @@ import { WhiteboardDeskHero } from './WhiteboardDeskHero';
 import { WhiteboardDeskGrid } from './WhiteboardDeskGrid';
 import { DeskSheetItem } from './WhiteboardDeskCard';
 import { buildDeskSheets } from './WhiteboardDeskData';
+import { WhiteboardDeleteConfirmModal } from './WhiteboardDeleteConfirmModal';
 import {
   RecentWhiteboardItem,
   fetchMergedRecentWhiteboards,
   removeRecentWhiteboardAsync,
 } from './WhiteboardRecentStorage';
 import { WhiteboardInitialData, DEFAULT_WHITEBOARD_TITLE } from '../WhiteboardConstants';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 interface WhiteboardHomeViewProps {
   onOpenBoard: (board: WhiteboardInitialData) => void;
@@ -26,6 +28,7 @@ export const WhiteboardHomeView: React.FC<WhiteboardHomeViewProps> = ({
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparingId, setPreparingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage || null);
+  const [pendingDeleteSheet, setPendingDeleteSheet] = useState<DeskSheetItem | null>(null);
 
   useEffect(() => {
     if (errorMessage) {
@@ -124,13 +127,13 @@ export const WhiteboardHomeView: React.FC<WhiteboardHomeViewProps> = ({
 
       const validExts = ['.excalidraw', '.json', '.solstice', '.tldr'];
       if (!validExts.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-        setErrorMessage(`"${file.name}" is not a supported whiteboard file (.excalidraw or .solstice).`);
+        setErrorMessage(`"${file.name}" is not a supported whiteboard file (.excalidraw, .solstice, .tldr, or .json).`);
         return;
       }
 
-      const electronPath = (file as unknown as { path?: string }).path;
-      if (electronPath && window.solsticeAPI?.whiteboardOpenFile) {
-        const res = await window.solsticeAPI.whiteboardOpenFile(electronPath);
+      const nativePath = (file as unknown as { path?: string }).path;
+      if (nativePath && window.solsticeAPI?.whiteboardOpenFile) {
+        const res = await window.solsticeAPI.whiteboardOpenFile(nativePath);
         if (res.success && res.content !== undefined) {
           onOpenBoard({
             title: res.title || file.name.replace(/\.[^/.]+$/, ''),
@@ -162,10 +165,62 @@ export const WhiteboardHomeView: React.FC<WhiteboardHomeViewProps> = ({
     [onOpenBoard]
   );
 
+  useTauriFileDrop({
+    enabled: !isPreparing,
+    onDropPaths: async (paths) => {
+      const validExts = ['.excalidraw', '.json', '.solstice', '.tldr'];
+      const target = paths.find((p) => validExts.some((ext) => p.toLowerCase().endsWith(ext)));
+      if (!target) {
+        setErrorMessage('Dropped file is not a supported whiteboard file (.excalidraw, .solstice, .tldr, or .json).');
+        return;
+      }
+      if (window.solsticeAPI?.whiteboardOpenFile) {
+        const res = await window.solsticeAPI.whiteboardOpenFile(target);
+        if (res.success && res.content !== undefined) {
+          onOpenBoard({
+            title: res.title || target.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || DEFAULT_WHITEBOARD_TITLE,
+            content: res.content,
+            filePath: res.filePath,
+            boardId: res.filePath || `board_${Date.now()}`,
+          });
+        } else if (res.error) {
+          setErrorMessage(res.error);
+        }
+      }
+    },
+  });
+
   const handleRemoveSheet = useCallback(
-    async (id: string, filePath?: string | null, e?: React.MouseEvent) => {
+    (id: string, filePath?: string | null, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      await removeRecentWhiteboardAsync(id, filePath, true);
+      const target = deskSheets.find((s) => s.id === id) || {
+        id,
+        title: filePath?.split(/[/\\]/).pop() || 'Untitled whiteboard',
+        relativeTime: '',
+        statLabel: '',
+        tapeColor: 'yellow' as const,
+        tiltClass: '',
+        illustrationType: 'freeform' as const,
+        filePath,
+      };
+      setPendingDeleteSheet(target);
+    },
+    [deskSheets]
+  );
+
+  const handleConfirmRemoveFromRecents = useCallback(
+    async (sheet: DeskSheetItem) => {
+      setPendingDeleteSheet(null);
+      await removeRecentWhiteboardAsync(sheet.id, sheet.filePath, false);
+      await loadRecentFiles();
+    },
+    [loadRecentFiles]
+  );
+
+  const handleConfirmDeleteFromDisk = useCallback(
+    async (sheet: DeskSheetItem) => {
+      setPendingDeleteSheet(null);
+      await removeRecentWhiteboardAsync(sheet.id, sheet.filePath, true);
       await loadRecentFiles();
     },
     [loadRecentFiles]
@@ -215,6 +270,14 @@ export const WhiteboardHomeView: React.FC<WhiteboardHomeViewProps> = ({
           preparingId={preparingId}
         />
       </main>
+
+      <WhiteboardDeleteConfirmModal
+        isOpen={Boolean(pendingDeleteSheet)}
+        sheet={pendingDeleteSheet}
+        onClose={() => setPendingDeleteSheet(null)}
+        onRemoveFromRecents={handleConfirmRemoveFromRecents}
+        onDeleteFromDisk={handleConfirmDeleteFromDisk}
+      />
     </div>
   );
 };

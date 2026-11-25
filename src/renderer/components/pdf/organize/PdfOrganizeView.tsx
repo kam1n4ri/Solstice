@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import { pdfjsLib } from '../pdfjsSetup';
+import { pdfjsLib, PDFDocumentProxy } from '../pdfjsSetup';
 import { OrganizeFile, OrganizePage } from './PdfOrganizeTypes';
 import { PdfOrganizeGrid } from './PdfOrganizeGrid';
 import { PdfOrganizeSidebar } from './PdfOrganizeSidebar';
@@ -9,6 +9,7 @@ interface PdfOrganizeViewProps {
   initialFilePath?: string | null;
   initialFileName?: string;
   initialData?: Uint8Array | null;
+  saveAsCopy?: boolean;
   onSuccess: (filePath: string, data: Uint8Array, fileName: string) => void;
   onCancel: () => void;
 }
@@ -19,24 +20,38 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
   initialFilePath,
   initialFileName = 'Document.pdf',
   initialData,
+  saveAsCopy = false,
   onSuccess,
   onCancel,
 }) => {
   const [files, setFiles] = useState<OrganizeFile[]>([]);
   const [pages, setPages] = useState<OrganizePage[]>([]);
   const [initialPages, setInitialPages] = useState<OrganizePage[]>([]);
-  const [docProxies, setDocProxies] = useState<Map<string, any>>(new Map());
+  const [docProxies, setDocProxies] = useState<Map<string, PDFDocumentProxy>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const nextFileIndexRef = useRef(1);
+  const docProxiesRef = useRef<Map<string, PDFDocumentProxy>>(new Map());
+  docProxiesRef.current = docProxies;
+
+  useEffect(() => {
+    return () => {
+      docProxiesRef.current.forEach((proxy) => proxy?.destroy?.().catch(() => {}));
+    };
+  }, []);
 
   // Load initial document
   useEffect(() => {
     if (!initialData || initialData.byteLength === 0) return;
+    let cancelled = false;
     const fileId = 'file-0';
     const prefix = 'A';
+    nextFileIndexRef.current = 1;
 
     PDFDocument.load(initialData, { ignoreEncryption: true })
       .then(async (pdfDoc) => {
+        if (cancelled) return;
         const count = pdfDoc.getPageCount();
         const initialFile: OrganizeFile = {
           id: fileId,
@@ -46,7 +61,6 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
           pageCount: count,
           prefix,
         };
-        setFiles([initialFile]);
 
         const items: OrganizePage[] = Array.from({ length: count }, (_, i) => ({
           id: `${fileId}-p-${i}-${Date.now()}`,
@@ -56,13 +70,27 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
           rotation: 0,
           filePrefix: prefix,
         }));
-        setPages(items);
-        setInitialPages(items);
 
         const proxy = await pdfjsLib.getDocument({ data: initialData.slice() }).promise;
-        setDocProxies((prev) => new Map(prev).set(fileId, proxy));
+        if (cancelled) {
+          proxy?.destroy?.().catch(() => {});
+          return;
+        }
+
+        docProxiesRef.current.forEach((p) => p?.destroy?.().catch(() => {}));
+        setFiles([initialFile]);
+        setPages(items);
+        setInitialPages(items);
+        setDocProxies(new Map([[fileId, proxy]]));
+        setError(null);
       })
-      .catch((err) => setError(err.message || 'Failed to inspect document pages'));
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Failed to inspect document pages');
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [initialData, initialFileName, initialFilePath]);
 
   const handleReorderPages = useCallback(
@@ -127,40 +155,54 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
       const res = await window.solsticeAPI.pdfSelectFiles({ multiple: true, title: 'Add PDF to Organize' });
       if (res.canceled || !res.files.length) return;
 
+      const addedFiles: OrganizeFile[] = [];
+      const addedPages: OrganizePage[] = [];
+      const addedProxies: Array<[string, PDFDocumentProxy]> = [];
+
       for (const f of res.files) {
         const readRes = await window.solsticeAPI.pdfReadFile(f.filePath);
         if (readRes.success && readRes.data) {
           const bytes = new Uint8Array(readRes.data);
           const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
           const count = pdfDoc.getPageCount();
-          const fileIndex = files.length;
+          const fileIndex = nextFileIndexRef.current++;
           const fileId = `file-${fileIndex}-${Date.now()}`;
           const prefix = PREFIXES[fileIndex % PREFIXES.length];
 
-          const newFile: OrganizeFile = {
+          addedFiles.push({
             id: fileId,
             name: f.fileName,
             filePath: f.filePath,
             fileData: bytes,
             pageCount: count,
             prefix,
-          };
+          });
 
-          const newPages: OrganizePage[] = Array.from({ length: count }, (_, i) => ({
-            id: `${fileId}-p-${i}-${Date.now()}`,
-            fileId,
-            fileIndex,
-            originalPageIndex: i,
-            rotation: 0,
-            filePrefix: prefix,
-          }));
+          for (let i = 0; i < count; i++) {
+            addedPages.push({
+              id: `${fileId}-p-${i}-${Date.now()}`,
+              fileId,
+              fileIndex,
+              originalPageIndex: i,
+              rotation: 0,
+              filePrefix: prefix,
+            });
+          }
 
           const proxy = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
-          setDocProxies((prev) => new Map(prev).set(fileId, proxy));
-          setFiles((prev) => [...prev, newFile]);
-          setPages((prev) => [...prev, ...newPages]);
-          setInitialPages((prev) => [...prev, ...newPages]);
+          addedProxies.push([fileId, proxy]);
         }
+      }
+
+      if (addedFiles.length > 0) {
+        setDocProxies((prev) => {
+          const next = new Map(prev);
+          addedProxies.forEach(([id, proxy]) => next.set(id, proxy));
+          return next;
+        });
+        setFiles((prev) => [...prev, ...addedFiles]);
+        setPages((prev) => [...prev, ...addedPages]);
+        setInitialPages((prev) => [...prev, ...addedPages]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add additional PDF file.');
@@ -170,6 +212,16 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
   const handleRemoveFile = (fileId: string) => {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
     setPages((prev) => prev.filter((p) => p.fileId !== fileId));
+    setInitialPages((prev) => prev.filter((p) => p.fileId !== fileId));
+    setDocProxies((prev) => {
+      const next = new Map(prev);
+      const removed = next.get(fileId);
+      if (removed) {
+        removed.destroy?.().catch(() => {});
+        next.delete(fileId);
+      }
+      return next;
+    });
   };
 
   const handleOrganize = async () => {
@@ -178,6 +230,10 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
     setError(null);
 
     try {
+      const defaultName = saveAsCopy && !initialFileName.startsWith('Organized_')
+        ? `Organized_${initialFileName}`
+        : initialFileName;
+
       const res = await window.solsticeAPI.pdfOrganize({
         files: files.map((f) => ({ filePath: f.filePath, fileData: Array.from(f.fileData) })),
         filePath: files[0]?.filePath,
@@ -190,12 +246,12 @@ export const PdfOrganizeView: React.FC<PdfOrganizeViewProps> = ({
             rotationDelta: p.rotation,
           };
         }),
-        saveAsCopy: false,
-        defaultName: initialFileName,
+        saveAsCopy,
+        defaultName,
       });
 
       if (res.success && res.filePath && res.data) {
-        onSuccess(res.filePath, new Uint8Array(res.data), res.fileName || initialFileName);
+        onSuccess(res.filePath, new Uint8Array(res.data), res.fileName || defaultName);
       } else if (!res.canceled && res.error) {
         setError(res.error);
       }

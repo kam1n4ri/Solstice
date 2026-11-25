@@ -28,7 +28,7 @@ export async function executePdfSplit(payload: PdfSplitPayload): Promise<PdfSpli
     const outputPaths: string[] = [];
     const outputFiles: SplitOutputItem[] = [];
 
-    const filesToSave: { fileName: string; data: number[] }[] = [];
+    const filesToSave: { fileName: string; data: number[]; pageCount: number }[] = [];
 
     if (payload.mode === 'extract-all') {
       for (let i = 0; i < totalPages; i++) {
@@ -37,7 +37,7 @@ export async function executePdfSplit(payload: PdfSplitPayload): Promise<PdfSpli
         singleDoc.addPage(copied);
         const bytes = await singleDoc.save();
         const fileName = `${baseName}_page_${i + 1}.pdf`;
-        filesToSave.push({ fileName, data: Array.from(bytes) });
+        filesToSave.push({ fileName, data: Array.from(bytes), pageCount: 1 });
       }
     } else {
       const rangeTokens = (payload.ranges || '1')
@@ -65,11 +65,16 @@ export async function executePdfSplit(payload: PdfSplitPayload): Promise<PdfSpli
           const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
           copiedPages.forEach((p) => subDoc.addPage(p));
           const bytes = await subDoc.save();
-          const fileName = `${baseName}_part_${partIndex}_(pages_${token}).pdf`;
-          filesToSave.push({ fileName, data: Array.from(bytes) });
+          const safeToken = token.replace(/[^0-9-]/g, '_');
+          const fileName = `${baseName}_part_${partIndex}_(pages_${safeToken}).pdf`;
+          filesToSave.push({ fileName, data: Array.from(bytes), pageCount: copiedPages.length });
           partIndex++;
         }
       }
+    }
+
+    if (filesToSave.length === 0) {
+      return { success: false, error: 'No valid page ranges matched the source PDF.' };
     }
 
     // Save generated split parts
@@ -81,16 +86,18 @@ export async function executePdfSplit(payload: PdfSplitPayload): Promise<PdfSpli
         },
       });
 
-      if (saveRes.success && saveRes.filePath) {
-        outputPaths.push(saveRes.filePath);
-        outputFiles.push({
-          filePath: saveRes.filePath,
-          fileName: saveRes.fileName || item.fileName,
-          pageCount: 1,
-          data: item.data,
-          fileSize: item.data.length,
-        });
+      if (!saveRes.success || !saveRes.filePath) {
+        return { success: false, error: saveRes.error || `Failed to save ${item.fileName}.` };
       }
+
+      outputPaths.push(saveRes.filePath);
+      outputFiles.push({
+        filePath: saveRes.filePath,
+        fileName: saveRes.fileName || item.fileName,
+        pageCount: item.pageCount,
+        data: item.data,
+        fileSize: item.data.length,
+      });
     }
 
     return { success: true, outputPaths, outputFiles };

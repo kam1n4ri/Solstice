@@ -26,11 +26,13 @@ interface StoredStyles {
 }
 
 const ZOOM_OPTIONS: ToolbarDropdownOption<number>[] = [
+  { value: 50, label: '50%' },
   { value: 75, label: '75%' },
   { value: 90, label: '90%' },
   { value: 100, label: '100%' },
   { value: 125, label: '125%' },
   { value: 150, label: '150%' },
+  { value: 200, label: '200%' },
 ];
 
 export const ToolbarHistory: React.FC<ToolbarHistoryProps> = ({
@@ -154,6 +156,7 @@ export const ToolbarHistory: React.FC<ToolbarHistoryProps> = ({
       <ToolbarDropdown
         value={zoomLevel}
         options={ZOOM_OPTIONS}
+        triggerLabel={`${zoomLevel}%`}
         onChange={(val) => onChangeZoom?.(val)}
         title="Zoom"
         triggerClass="max-w-[70px]"

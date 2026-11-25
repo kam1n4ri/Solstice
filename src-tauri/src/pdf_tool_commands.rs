@@ -1,6 +1,27 @@
 use crate::pdf_engine::{normalize_path, FileRecord};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
+
+fn sanitize_output_file_name(raw: &str) -> Result<String, String> {
+    let base = Path::new(raw)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("Invalid file name: {}", raw))?;
+
+    let cleaned: String = base
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | '?' | '%' | '*' | ':' | '|' | '"' | '<' | '>' | '\0' => '-',
+            other => other,
+        })
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        return Err(format!("Unsafe file name: {}", raw));
+    }
+    Ok(trimmed.to_string())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PdfSelectFilesOptions {
@@ -129,8 +150,26 @@ pub async fn pdf_save_files_to_folder(files: Vec<FileToSave>) -> Result<PdfSaveF
         Some(f) => {
             let folder_path = f.path().to_path_buf();
             for item in files {
-                let dest = folder_path.join(&item.file_name);
-                let _ = fs::write(dest, item.data);
+                let safe_name = match sanitize_output_file_name(&item.file_name) {
+                    Ok(name) => name,
+                    Err(e) => {
+                        return Ok(PdfSaveFilesToFolderResult {
+                            success: false,
+                            canceled: None,
+                            folder_path: None,
+                            error: Some(e),
+                        });
+                    }
+                };
+                let dest = folder_path.join(&safe_name);
+                if let Err(e) = fs::write(&dest, &item.data) {
+                    return Ok(PdfSaveFilesToFolderResult {
+                        success: false,
+                        canceled: None,
+                        folder_path: None,
+                        error: Some(format!("Failed to write '{}': {}", safe_name, e)),
+                    });
+                }
             }
             Ok(PdfSaveFilesToFolderResult {
                 success: true,

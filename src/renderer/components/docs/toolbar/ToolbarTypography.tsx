@@ -51,16 +51,7 @@ export const ToolbarTypography: React.FC<ToolbarTypographyProps> = ({ editor }) 
     }));
   }, [dynamicFonts]);
 
-  if (!editor) return null;
-
-  const currentHeading = editor.isActive('heading', { level: 1 })
-    ? 'H1' : editor.isActive('heading', { level: 2 })
-    ? 'H2' : editor.isActive('heading', { level: 3 })
-    ? 'H3' : 'Normal';
-
-  const rawFont = editor.getAttributes('textStyle').fontFamily;
-  const currentFont = normalizeFontFamily(rawFont, dynamicFonts);
-  const fontSizeAttr = editor.getAttributes('textStyle').fontSize || '11pt';
+  const fontSizeAttr = editor?.getAttributes('textStyle').fontSize || '11pt';
   const currentSize = parseInt(fontSizeAttr, 10) || 11;
   const [inputVal, setInputVal] = useState<string>(String(currentSize));
   const [isFocused, setIsFocused] = useState<boolean>(false);
@@ -70,6 +61,16 @@ export const ToolbarTypography: React.FC<ToolbarTypographyProps> = ({ editor }) 
       setInputVal(String(currentSize));
     }
   }, [currentSize, isFocused]);
+
+  if (!editor) return null;
+
+  const currentHeading = editor.isActive('heading', { level: 1 })
+    ? 'H1' : editor.isActive('heading', { level: 2 })
+    ? 'H2' : editor.isActive('heading', { level: 3 })
+    ? 'H3' : 'Normal';
+
+  const rawFont = editor.getAttributes('textStyle').fontFamily;
+  const currentFont = normalizeFontFamily(rawFont, dynamicFonts);
 
   const commitFontSize = (rawVal: string) => {
     const parsed = parseInt(rawVal.trim(), 10);

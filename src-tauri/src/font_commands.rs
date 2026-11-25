@@ -6,49 +6,95 @@ use tauri::{AppHandle, Emitter};
 #[tauri::command]
 pub fn get_installed_fonts(app: AppHandle) -> Vec<InstalledFont> {
     let fonts_dir = get_solstice_fonts_dir(&app);
-    let mut manifest = load_manifest(&app);
+    let manifest = load_manifest(&app);
+    let mut valid_fonts = Vec::with_capacity(manifest.len());
+    let mut manifest_changed = false;
 
-    for font in &mut manifest {
-        let font_path = fonts_dir.join(&font.file_name);
-        let ext = font_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("woff2");
-        font.data_url = file_to_data_url(&font_path, ext);
+    for mut font in manifest {
+        font.data_url = safe_font_path(&fonts_dir, &font.file_name)
+            .ok()
+            .and_then(|font_path| {
+                let ext = font_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("woff2");
+                file_to_data_url(&font_path, ext)
+            });
 
-        if let Some(ref bold_name) = font.bold_file_name {
-            let bold_path = fonts_dir.join(bold_name);
-            let bold_ext = bold_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("woff2");
-            font.bold_data_url = file_to_data_url(&bold_path, bold_ext);
+        if font.data_url.is_none() {
+            manifest_changed = true;
+            continue;
         }
+
+        if let Some(ref bold_name) = font.bold_file_name.clone() {
+            let bold_data_url = safe_font_path(&fonts_dir, bold_name)
+                .ok()
+                .and_then(|bold_path| {
+                    let bold_ext = bold_path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("woff2");
+                    file_to_data_url(&bold_path, bold_ext)
+                });
+            if bold_data_url.is_none() {
+                font.bold_file_name = None;
+                font.bold_data_url = None;
+                manifest_changed = true;
+            } else {
+                font.bold_data_url = bold_data_url;
+            }
+        } else {
+            font.bold_data_url = None;
+        }
+
+        valid_fonts.push(font);
     }
 
-    manifest
+    if manifest_changed {
+        let _ = save_manifest(&app, &valid_fonts);
+    }
+
+    valid_fonts
 }
 
 #[tauri::command]
 pub fn save_installed_font(
     app: AppHandle,
-    font: InstalledFont,
+    mut font: InstalledFont,
     data: Vec<u8>,
     bold_data: Option<Vec<u8>>,
 ) -> Result<InstalledFont, String> {
-    let fonts_dir = get_solstice_fonts_dir(&app);
-    let font_path = fonts_dir.join(&font.file_name);
-    fs::write(&font_path, &data).map_err(|e| e.to_string())?;
-
-    if let (Some(ref bold_name), Some(ref b_bytes)) = (&font.bold_file_name, &bold_data) {
-        let bold_path = fonts_dir.join(bold_name);
-        let _ = fs::write(&bold_path, b_bytes);
+    if data.is_empty() {
+        return Err("Font file data is empty".to_string());
     }
 
-    let mut manifest = load_manifest(&app);
-    manifest.retain(|f| f.name.to_lowercase() != font.name.to_lowercase() && f.id != font.id);
-    manifest.push(font.clone());
-    save_manifest(&app, &manifest);
+    let fonts_dir = get_solstice_fonts_dir(&app);
+    let safe_name = sanitize_font_filename(&font.file_name)?;
+    font.file_name = safe_name.clone();
+    let font_path = safe_font_path(&fonts_dir, &safe_name)?;
+    fs::write(&font_path, &data).map_err(|e| format!("Failed to save font file: {}", e))?;
+
+    match (font.bold_file_name.clone(), &bold_data) {
+        (Some(raw_bold_name), Some(b_bytes)) if !b_bytes.is_empty() => {
+            let safe_bold = sanitize_font_filename(&raw_bold_name)?;
+            font.bold_file_name = Some(safe_bold.clone());
+            let bold_path = safe_font_path(&fonts_dir, &safe_bold)?;
+            fs::write(&bold_path, b_bytes)
+                .map_err(|e| format!("Failed to save bold font file: {}", e))?;
+        }
+        _ => {
+            font.bold_file_name = None;
+            font.bold_data_url = None;
+        }
+    }
+
+    let manifest = load_manifest(&app);
+    let (mut kept, removed): (Vec<InstalledFont>, Vec<InstalledFont>) = manifest
+        .into_iter()
+        .partition(|f| !f.name.eq_ignore_ascii_case(&font.name) && f.id != font.id);
+    kept.push(font.clone());
+    save_manifest(&app, &kept)?;
+    let _ = remove_orphan_font_files(&fonts_dir, &removed, &kept);
 
     let updated = get_installed_fonts(app.clone());
     let _ = app.emit("fonts-updated", &updated);
@@ -95,9 +141,28 @@ pub async fn import_local_font(app: AppHandle) -> Result<ImportFontResult, Strin
         .unwrap_or("Custom Font");
     let clean_title = raw_stem.replace('-', " ").replace('_', " ");
 
+    let metadata = fs::metadata(&path).map_err(|e| format!("Failed to read font file: {}", e))?;
+    if metadata.len() == 0 {
+        return Ok(ImportFontResult {
+            success: false,
+            canceled: None,
+            font: None,
+            error: Some("Selected font file is empty".to_string()),
+        });
+    }
+
     let fonts_dir = get_solstice_fonts_dir(&app);
-    let dest_path = fonts_dir.join(&base_name);
-    fs::copy(&path, &dest_path).map_err(|e| e.to_string())?;
+    let safe_base = sanitize_font_filename(&base_name)?;
+    let dest_path = safe_font_path(&fonts_dir, &safe_base)?;
+    let same_file = path
+        .canonicalize()
+        .ok()
+        .zip(dest_path.canonicalize().ok())
+        .map(|(a, b)| a == b)
+        .unwrap_or_else(|| path == dest_path);
+    if !same_file {
+        fs::copy(&path, &dest_path).map_err(|e| e.to_string())?;
+    }
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -105,12 +170,20 @@ pub async fn import_local_font(app: AppHandle) -> Result<ImportFontResult, Strin
         .unwrap_or(0);
 
     let data_url = file_to_data_url(&dest_path, &ext);
+    if data_url.is_none() {
+        return Ok(ImportFontResult {
+            success: false,
+            canceled: None,
+            font: None,
+            error: Some("Failed to load font data".to_string()),
+        });
+    }
 
     let new_font = InstalledFont {
         id: clean_title.clone(),
         name: clean_title,
         category: "sans-serif".to_string(),
-        file_name: base_name,
+        file_name: safe_base,
         bold_file_name: None,
         source: "custom".to_string(),
         date_added: now,
@@ -118,10 +191,13 @@ pub async fn import_local_font(app: AppHandle) -> Result<ImportFontResult, Strin
         bold_data_url: None,
     };
 
-    let mut manifest = load_manifest(&app);
-    manifest.retain(|f| f.name.to_lowercase() != new_font.name.to_lowercase());
-    manifest.push(new_font.clone());
-    save_manifest(&app, &manifest);
+    let manifest = load_manifest(&app);
+    let (mut kept, removed): (Vec<InstalledFont>, Vec<InstalledFont>) = manifest
+        .into_iter()
+        .partition(|f| !f.name.eq_ignore_ascii_case(&new_font.name) && f.id != new_font.id);
+    kept.push(new_font.clone());
+    save_manifest(&app, &kept)?;
+    let _ = remove_orphan_font_files(&fonts_dir, &removed, &kept);
 
     let updated = get_installed_fonts(app.clone());
     let _ = app.emit("fonts-updated", &updated);
@@ -137,15 +213,14 @@ pub async fn import_local_font(app: AppHandle) -> Result<ImportFontResult, Strin
 #[tauri::command]
 pub fn delete_installed_font(app: AppHandle, font_id: String) -> Result<(), String> {
     let fonts_dir = get_solstice_fonts_dir(&app);
-    let mut manifest = load_manifest(&app);
+    let manifest = load_manifest(&app);
+    let (kept, removed): (Vec<InstalledFont>, Vec<InstalledFont>) = manifest
+        .into_iter()
+        .partition(|f| f.id != font_id && !f.name.eq_ignore_ascii_case(&font_id));
 
-    if let Some(pos) = manifest.iter().position(|f| f.id == font_id || f.name == font_id) {
-        let removed = manifest.remove(pos);
-        let _ = fs::remove_file(fonts_dir.join(&removed.file_name));
-        if let Some(ref bold_name) = removed.bold_file_name {
-            let _ = fs::remove_file(fonts_dir.join(bold_name));
-        }
-        save_manifest(&app, &manifest);
+    if !removed.is_empty() {
+        remove_orphan_font_files(&fonts_dir, &removed, &kept)?;
+        save_manifest(&app, &kept)?;
         let updated = get_installed_fonts(app.clone());
         let _ = app.emit("fonts-updated", &updated);
     }

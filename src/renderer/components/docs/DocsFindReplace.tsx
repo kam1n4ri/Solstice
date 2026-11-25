@@ -49,9 +49,12 @@ export const DocsFindReplace: React.FC<DocsFindReplaceProps> = ({
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                e.preventDefault();
                 if (e.shiftKey) handlePrev();
                 else handleNext();
               } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
                 handleClose();
               }
             }}
@@ -117,8 +120,14 @@ export const DocsFindReplace: React.FC<DocsFindReplaceProps> = ({
             value={replaceTerm}
             onChange={(e) => setReplaceTerm(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleReplaceCurrent();
-              else if (e.key === 'Escape') handleClose();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleReplaceCurrent();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose();
+              }
             }}
             placeholder="Replace with..."
             className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200 focus:bg-white transition-colors"

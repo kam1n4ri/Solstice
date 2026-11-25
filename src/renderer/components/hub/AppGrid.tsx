@@ -88,7 +88,7 @@ export const AppGrid: React.FC<AppGridProps> = ({
             </span>
             <span className="h-1 w-1 rounded-full bg-outline-variant" />
             <span className="text-[11px] text-outline font-medium">
-              {group.tools.length} applications
+              {group.tools.length} {group.tools.length === 1 ? 'application' : 'applications'}
             </span>
           </div>
 

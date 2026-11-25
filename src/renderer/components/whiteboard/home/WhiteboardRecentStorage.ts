@@ -1,10 +1,38 @@
 import { WHITEBOARD_RECENT_STORAGE_KEY } from '../WhiteboardConstants';
 
+const WHITEBOARD_DISMISSED_STORAGE_KEY = 'solstice:whiteboard:dismissed_recents';
+
 export interface RecentWhiteboardItem {
   id: string;
   title: string;
   filePath?: string | null;
   lastModified: number;
+}
+
+function getDismissedWhiteboards(): Set<string> {
+  try {
+    const raw = localStorage.getItem(WHITEBOARD_DISMISSED_STORAGE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissRecentWhiteboard(idOrPath: string): void {
+  try {
+    const dismissed = getDismissedWhiteboards();
+    dismissed.add(idOrPath);
+    localStorage.setItem(WHITEBOARD_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+  } catch {}
+}
+
+function undismissRecentWhiteboard(idOrPath: string): void {
+  try {
+    const dismissed = getDismissedWhiteboards();
+    if (dismissed.delete(idOrPath)) {
+      localStorage.setItem(WHITEBOARD_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+    }
+  } catch {}
 }
 
 export function formatWhiteboardDate(timestamp: number): string {
@@ -28,8 +56,9 @@ export function formatWhiteboardDate(timestamp: number): string {
 
 export async function fetchMergedRecentWhiteboards(): Promise<RecentWhiteboardItem[]> {
   const mergedMap = new Map<string, RecentWhiteboardItem>();
+  const dismissed = getDismissedWhiteboards();
 
-  // 1. Fetch persistent records from Electron Main backend
+  // 1. Fetch persistent records from backend
   try {
     if (window.solsticeAPI?.getRecentFiles) {
       const backendFiles = await window.solsticeAPI.getRecentFiles();
@@ -37,8 +66,9 @@ export async function fetchMergedRecentWhiteboards(): Promise<RecentWhiteboardIt
         .filter((f) => f.tool === 'whiteboard')
         .forEach((f) => {
           const key = f.filePath;
+          if (dismissed.has(key)) return;
           const cleanTitle = f.fileName
-            .replace(/\.(excalidraw|tldr|json)$/i, '')
+            .replace(/\.(excalidraw|tldr|json|solstice)$/i, '')
             .replace(/[/\\?%*:|"<>]/g, ' ')
             .trim();
 
@@ -61,6 +91,9 @@ export async function fetchMergedRecentWhiteboards(): Promise<RecentWhiteboardIt
       const localItems: RecentWhiteboardItem[] = JSON.parse(raw);
       localItems.forEach((item) => {
         const key = item.filePath || item.id;
+        if (dismissed.has(key) || (item.filePath && dismissed.has(item.filePath)) || dismissed.has(item.id)) {
+          return;
+        }
         if (!mergedMap.has(key)) {
           mergedMap.set(key, item);
         } else {
@@ -81,6 +114,8 @@ export async function fetchMergedRecentWhiteboards(): Promise<RecentWhiteboardIt
 
 export function saveRecentWhiteboard(item: RecentWhiteboardItem): void {
   try {
+    if (item.filePath) undismissRecentWhiteboard(item.filePath);
+    if (item.id) undismissRecentWhiteboard(item.id);
     const raw = localStorage.getItem(WHITEBOARD_RECENT_STORAGE_KEY);
     const localItems: RecentWhiteboardItem[] = raw ? JSON.parse(raw) : [];
     const filtered = localItems.filter(
@@ -111,18 +146,24 @@ export async function removeRecentWhiteboardAsync(
     console.error('Failed to remove from local storage:', err);
   }
 
-  // 2. Remove from backend recent files store and safely remove from disk
+  // 2. Persist dismissed state or safely remove from disk
   const targetPath = filePath || (id.includes('/') || id.includes('\\') ? id : null);
-  if (targetPath) {
-    if (deleteFromDisk && window.solsticeAPI?.deleteFile) {
+  if (deleteFromDisk) {
+    if (targetPath && window.solsticeAPI?.deleteFile) {
       try {
         await window.solsticeAPI.deleteFile(targetPath);
       } catch (err) {
         console.error('Failed to delete whiteboard file from disk:', err);
       }
-    } else if (window.solsticeAPI?.removeRecentFile) {
+    }
+    if (targetPath) undismissRecentWhiteboard(targetPath);
+    undismissRecentWhiteboard(id);
+  } else {
+    if (targetPath) dismissRecentWhiteboard(targetPath);
+    dismissRecentWhiteboard(id);
+    if (targetPath && window.solsticeAPI?.removeRecentFile) {
       try {
-        await window.solsticeAPI.removeRecentFile(targetPath, deleteFromDisk);
+        await window.solsticeAPI.removeRecentFile(targetPath, false);
       } catch (err) {
         console.error('Failed to remove from backend recent files store:', err);
       }

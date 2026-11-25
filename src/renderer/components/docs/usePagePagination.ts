@@ -56,7 +56,8 @@ export function usePagePagination(
       }
     }
 
-    const unscaledScrollHeight = (proseMirror.scrollHeight || proseMirror.offsetHeight || container.scrollHeight) / scale;
+    const unscaledScrollHeight =
+      proseMirror.scrollHeight || proseMirror.offsetHeight || container.scrollHeight;
     const effectiveHeight = Math.max(unscaledScrollHeight, maxContentBottom);
 
     // Calculate required pages from the rendered content height:

@@ -72,8 +72,13 @@ export function usePdfFileOps({
           setTitleState(cleanTitle);
 
           syncRecentPdf(oldPath, newPath, cleanTitle);
+          if (!isDirtyRef.current) {
+            setStatusText('All changes saved');
+          }
           return { success: true, newPath };
         }
+        console.error('Failed to rename PDF:', res.error || 'Unknown error');
+        setStatusText('Error saving');
       }
       return { success: false };
     },
@@ -124,8 +129,8 @@ export function usePdfFileOps({
         return true;
       }
 
-      isDirtyRef.current = false;
-      setStatusText('All changes saved');
+      console.error('Failed to auto-save PDF:', res.error || 'Missing target path or unknown save error');
+      setStatusText('Error saving');
       return false;
     } catch (err) {
       console.error('Failed to auto-save PDF:', err);
@@ -139,6 +144,7 @@ export function usePdfFileOps({
 
   const scheduleAutoSave = useCallback(() => {
     isDirtyRef.current = true;
+    setStatusText('Unsaved changes');
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
@@ -165,8 +171,10 @@ export function usePdfFileOps({
 
       setTitleState(cleanTitle);
       currentTitleRef.current = cleanTitle;
-      await performRename(cleanTitle);
-      await flushAutoSaveRef.current();
+      const renameRes = await performRename(cleanTitle);
+      if (renameRes.success || isDirtyRef.current) {
+        await flushAutoSaveRef.current();
+      }
     },
     [performRename]
   );
@@ -211,9 +219,14 @@ export function usePdfFileOps({
       const res = await window.solsticeAPI.pdfExportFile({ data: finalBytes, defaultName });
       if (res.success && !res.canceled) {
         setStatusText('Exported successfully');
-        setTimeout(() => setStatusText('All changes saved'), 3000);
+        setTimeout(() => {
+          setStatusText(isDirtyRef.current ? 'Unsaved changes' : 'All changes saved');
+        }, 3000);
+      } else if (res.canceled) {
+        setStatusText(isDirtyRef.current ? 'Unsaved changes' : 'All changes saved');
       } else {
-        setStatusText('All changes saved');
+        console.error('Failed to export PDF:', res.error || 'Unknown export error');
+        setStatusText('Export failed');
       }
     } catch (err) {
       console.error('Failed to export PDF:', err);

@@ -64,35 +64,6 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({
     };
   }, []);
 
-  // Flush pending canvas changes when window close is requested
-  useEffect(() => {
-    if (window.solsticeAPI?.onSaveAndCloseRequested) {
-      const unsubscribe = window.solsticeAPI.onSaveAndCloseRequested(async () => {
-        if (isDirty) {
-          await flushAutoSave(true);
-        }
-        window.solsticeAPI?.closeWindow?.(true);
-      });
-      return unsubscribe;
-    }
-  }, [isDirty, flushAutoSave]);
-
-  // Safety flush on window beforeunload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isDirty) {
-        flushAutoSave(true);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (isDirty) {
-        flushAutoSave(true);
-      }
-    };
-  }, [isDirty, flushAutoSave]);
-
   return (
     <div className="flex-1 flex flex-col h-screen w-screen overflow-hidden bg-[#faf8f5] select-none">
       <WhiteboardHeader

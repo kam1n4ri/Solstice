@@ -48,7 +48,7 @@ export const DocsWordCountModal: React.FC<DocsWordCountModalProps> = ({
     paragraphs = text.split(/\n+/).filter(Boolean).length;
   }
 
-  const readingTime = Math.max(1, Math.ceil(words / 200));
+  const readingTime = words === 0 ? 0 : Math.max(1, Math.ceil(words / 200));
 
   // Selection metrics
   const hasSelection = Boolean(editor && !editor.state.selection.empty);

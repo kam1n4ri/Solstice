@@ -45,11 +45,12 @@ fn load_working_copy_map(app: &AppHandle) -> HashMap<String, String> {
     HashMap::new()
 }
 
-fn save_working_copy_map(app: &AppHandle, map: &HashMap<String, String>) {
+fn save_working_copy_map(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
     let map_path = get_working_copy_map_path(app);
-    if let Ok(content) = serde_json::to_string_pretty(map) {
-        let _ = fs::write(map_path, content);
-    }
+    let content = serde_json::to_string_pretty(map)
+        .map_err(|e| format!("Failed to serialize PDF working copy map: {}", e))?;
+    fs::write(map_path, content)
+        .map_err(|e| format!("Failed to persist PDF working copy map: {}", e))
 }
 
 pub fn normalize_path(p: &Path) -> String {
@@ -57,6 +58,30 @@ pub fn normalize_path(p: &Path) -> String {
         .unwrap_or_else(|_| p.to_path_buf())
         .to_string_lossy()
         .to_string()
+}
+
+pub fn is_inside_dir(path: &Path, dir: &Path) -> bool {
+    let norm_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let norm_dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    norm_path.starts_with(&norm_dir)
+}
+
+fn sanitize_pdf_title(raw: &str) -> String {
+    let cleaned: String = raw
+        .trim_end_matches(".pdf")
+        .trim_end_matches(".PDF")
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | '?' | '%' | '*' | ':' | '|' | '"' | '<' | '>' | '\0' => '-',
+            other => other,
+        })
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        "Document".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Ensures an external PDF is isolated in ~/Documents/Solstice/PDFs/
@@ -68,15 +93,11 @@ pub fn ensure_working_copy(app: &AppHandle, source_path_str: &str) -> Result<Pat
     }
 
     let solstice_dir = get_solstice_pdf_dir(app);
-    let norm_source = normalize_path(&source_path);
-    let norm_solstice = normalize_path(&solstice_dir);
-
-    // 1. If already inside ~/Documents/Solstice/PDFs/, it is already the active working copy
-    if norm_source.starts_with(&norm_solstice) {
+    if is_inside_dir(&source_path, &solstice_dir) {
         return Ok(source_path);
     }
 
-    // 2. Check if already mapped to an existing working copy
+    let norm_source = normalize_path(&source_path);
     let mut map = load_working_copy_map(app);
     if let Some(existing_working_path_str) = map.get(&norm_source) {
         let existing_path = PathBuf::from(existing_working_path_str);
@@ -85,41 +106,29 @@ pub fn ensure_working_copy(app: &AppHandle, source_path_str: &str) -> Result<Pat
         }
     }
 
-    // 3. Determine unique filename in ~/Documents/Solstice/PDFs/
     let file_stem = source_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("Document");
+        .map(sanitize_pdf_title)
+        .unwrap_or_else(|| "Document".to_string());
     let ext = source_path
         .extension()
         .and_then(|e| e.to_str())
+        .filter(|e| e.eq_ignore_ascii_case("pdf"))
         .unwrap_or("pdf");
 
     let mut target_path = solstice_dir.join(format!("{}.{}", file_stem, ext));
     let mut counter = 1;
-
-    // Check collision against other mapped sources
     while target_path.exists() {
-        let norm_target = normalize_path(&target_path);
-        let claimed_by_other = map.iter().any(|(src, dest)| {
-            src != &norm_source && normalize_path(Path::new(dest)) == norm_target
-        });
-        if !claimed_by_other {
-            break;
-        }
         target_path = solstice_dir.join(format!("{}-{}.{}", file_stem, counter, ext));
         counter += 1;
     }
 
-    // 4. Copy external original to working copy if target doesn't exist yet
-    if !target_path.exists() {
-        fs::copy(&source_path, &target_path)
-            .map_err(|e| format!("Failed to copy PDF to working copy directory: {}", e))?;
-    }
+    fs::copy(&source_path, &target_path)
+        .map_err(|e| format!("Failed to copy PDF to working copy directory: {}", e))?;
 
-    // 5. Persist mapping
     map.insert(norm_source, normalize_path(&target_path));
-    save_working_copy_map(app, &map);
+    save_working_copy_map(app, &map)?;
 
     Ok(target_path)
 }
@@ -146,10 +155,7 @@ pub fn save_working_pdf(
     let target_path = match file_path {
         Some(path_str) => {
             let path = PathBuf::from(&path_str);
-            let norm_target = normalize_path(&path);
-            let norm_solstice = normalize_path(&solstice_dir);
-
-            if norm_target.starts_with(&norm_solstice) {
+            if is_inside_dir(&path, &solstice_dir) {
                 path
             } else {
                 ensure_working_copy(app, &path_str)?
@@ -188,22 +194,21 @@ pub fn rename_working_pdf(
         return Err("File to rename does not exist".to_string());
     }
 
-    let clean_title = new_title
-        .trim_end_matches(".pdf")
-        .trim_end_matches(".PDF")
-        .replace(['/', '\\', '?', '%', '*', ':', '|', '"', '<', '>'], "-")
-        .trim()
-        .to_string();
-    if clean_title.is_empty() {
+    let solstice_dir = get_solstice_pdf_dir(app);
+    if !is_inside_dir(&old_path, &solstice_dir) {
+        return Err("Cannot rename files outside the Solstice PDF working directory".to_string());
+    }
+
+    let clean_title = sanitize_pdf_title(new_title);
+    if clean_title == "Document" && new_title.trim().is_empty() {
         return Err("Title cannot be empty".to_string());
     }
 
-    let parent_dir = old_path.parent().unwrap_or_else(|| Path::new("."));
-    let mut new_path = parent_dir.join(format!("{}.pdf", clean_title));
+    let mut new_path = solstice_dir.join(format!("{}.pdf", clean_title));
     let mut counter = 1;
 
     while new_path.exists() && normalize_path(&new_path) != normalize_path(&old_path) {
-        new_path = parent_dir.join(format!("{}-{}.pdf", clean_title, counter));
+        new_path = solstice_dir.join(format!("{}-{}.pdf", clean_title, counter));
         counter += 1;
     }
 
@@ -211,7 +216,6 @@ pub fn rename_working_pdf(
         fs::rename(&old_path, &new_path)
             .map_err(|e| format!("Failed to rename PDF: {}", e))?;
 
-        // Update working copy mapping if old_path was mapped
         let mut map = load_working_copy_map(app);
         let norm_old = normalize_path(&old_path);
         let norm_new = normalize_path(&new_path);
@@ -221,7 +225,7 @@ pub fn rename_working_pdf(
                 *dest = norm_new.clone();
             }
         }
-        save_working_copy_map(app, &map);
+        save_working_copy_map(app, &map)?;
     }
 
     let final_name = new_path

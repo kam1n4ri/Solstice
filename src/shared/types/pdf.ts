@@ -37,8 +37,15 @@ export interface PdfSelectFilesResult {
   files: { filePath: string; fileName: string; fileSize: number }[];
 }
 
+export interface PdfMergeInputFile {
+  filePath?: string;
+  fileData?: Uint8Array | number[];
+  fileName?: string;
+}
+
 export interface PdfMergePayload {
-  filePaths: string[];
+  filePaths?: string[];
+  files?: PdfMergeInputFile[];
   outputPath?: string;
   defaultName?: string;
 }
@@ -101,8 +108,15 @@ export interface PdfOrganizeResult {
   error?: string;
 }
 
+export interface PdfConvertImageInput {
+  filePath?: string;
+  fileData?: Uint8Array | number[];
+  fileName: string;
+}
+
 export interface PdfConvertImagesPayload {
-  imagePaths: string[];
+  imagePaths?: string[];
+  images?: PdfConvertImageInput[];
   fitToPage?: 'original' | 'a4-contain' | 'a4-cover';
   orientation?: 'portrait' | 'landscape' | 'auto';
   margin?: number;
@@ -207,6 +221,7 @@ export interface PdfProtectResult {
 export interface PdfUnlockPayload {
   filePath?: string;
   fileData?: Uint8Array | number[];
+  password?: string;
   defaultName?: string;
 }
 

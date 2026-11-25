@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   ReleaseNote,
   CURRENT_APP_VERSION,
-  fetchGitHubReleases,
+  checkForUpdates,
   getCachedOrInitialReleases,
   markUpdateAsSeen,
   compareVersions,
@@ -18,6 +18,7 @@ export const HubUpdatesView: React.FC<HubUpdatesViewProps> = ({ onUpdateSeen }) 
   const [releases, setReleases] = useState<ReleaseNote[]>(() => getCachedOrInitialReleases());
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   // Single-expand accordion state
   const [openVersion, setOpenVersion] = useState<string | null>(() => {
@@ -38,20 +39,25 @@ export const HubUpdatesView: React.FC<HubUpdatesViewProps> = ({ onUpdateSeen }) 
   const loadReleases = useCallback(async () => {
     setIsChecking(true);
     try {
-      const data = await fetchGitHubReleases();
-      setReleases(data);
-      if (data.length > 0 && (!openVersion || !data.some((r) => r.version === openVersion))) {
-        setOpenVersion(data[0].version);
+      const result = await checkForUpdates();
+      setReleases(result.releases);
+      setCheckError(result.error || null);
+      if (result.releases.length > 0) {
+        setOpenVersion((prev) =>
+          prev && result.releases.some((r) => r.version === prev) ? prev : result.releases[0].version
+        );
       }
-      setLastCheckedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      if (!result.error) {
+        setLastCheckedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      }
     } finally {
       setIsChecking(false);
     }
-  }, [openVersion]);
+  }, []);
 
   useEffect(() => {
     loadReleases();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadReleases]);
 
   const handleTogglePill = (version: string) => {
     setOpenVersion((prev) => (prev === version ? null : version));
@@ -68,12 +74,12 @@ export const HubUpdatesView: React.FC<HubUpdatesViewProps> = ({ onUpdateSeen }) 
   return (
     <div className="w-full">
       <div className="px-margin py-space-xl max-w-4xl mx-auto w-full">
-        {/* Header — Simple, clean, no gimmicks */}
+        {/* Header — Consistent typography with Hub views */}
         <header className="mb-6">
-          <h1 className="text-xl font-semibold text-on-surface tracking-tight">
+          <h1 className="text-2xl font-semibold text-on-surface tracking-tight">
             Updates
           </h1>
-          <p className="text-xs text-on-surface-variant mt-1">
+          <p className="text-sm text-on-surface-variant mt-1">
             Release history and changelog.
           </p>
         </header>
@@ -84,6 +90,7 @@ export const HubUpdatesView: React.FC<HubUpdatesViewProps> = ({ onUpdateSeen }) 
           hasUpdate={hasUpdate}
           isChecking={isChecking}
           lastCheckedTime={lastCheckedTime}
+          checkError={checkError}
           onCheckForUpdates={loadReleases}
           onOpenReleaseUrl={handleOpenUrl}
         />

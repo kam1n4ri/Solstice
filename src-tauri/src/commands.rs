@@ -12,7 +12,7 @@ pub struct WindowOpenResult {
 
 #[tauri::command]
 pub fn get_app_version() -> String {
-    "0.1.0-native".to_string()
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[tauri::command]
@@ -95,23 +95,6 @@ pub async fn open_tool_window(
             error: Some(e.to_string()),
         }),
     }
-}
-
-#[tauri::command]
-pub fn close_window(window: WebviewWindow) -> Result<(), String> {
-    let label = window.label().to_string();
-    let app = window.app_handle().clone();
-    if let Some(tool_id) = label.strip_prefix("tool-") {
-        let _ = app.emit(
-            "tool-window-state-changed",
-            serde_json::json!({
-                "toolId": tool_id,
-                "isOpen": false,
-                "isFocused": false
-            }),
-        );
-    }
-    window.close().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -249,11 +232,32 @@ pub fn get_recent_files(app: AppHandle) -> Vec<Value> {
 }
 
 #[tauri::command]
-pub fn delete_file(file_path: String) -> Result<(), String> {
+pub fn delete_file(app: AppHandle, file_path: String) -> Result<(), String> {
     let path = std::path::PathBuf::from(&file_path);
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    if !path.exists() {
+        return Ok(());
     }
+    if !path.is_file() {
+        return Err("Refusing to delete non-file path".to_string());
+    }
+
+    let canon_target = path.canonicalize().map_err(|e| e.to_string())?;
+    let allowed_dirs = [
+        crate::pdf_engine::get_solstice_pdf_dir(&app),
+        crate::docs_engine::get_solstice_docs_dir(&app),
+        crate::whiteboard_engine::get_solstice_whiteboards_dir(&app),
+    ];
+
+    let is_allowed = allowed_dirs.iter().any(|dir| {
+        let canon_dir = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        canon_target.starts_with(&canon_dir)
+    });
+
+    if !is_allowed {
+        return Err("Refusing to delete files outside Solstice workspace directories".to_string());
+    }
+
+    std::fs::remove_file(canon_target).map_err(|e| e.to_string())?;
     Ok(())
 }
 

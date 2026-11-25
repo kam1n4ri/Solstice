@@ -35,13 +35,13 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
         {/* Top Header Row with Logo as in App, Running Badge, or Coming Soon Pill */}
         <div className="flex items-center justify-between mb-space-sm min-h-[32px]">
           <div className="flex items-baseline select-none">
-            <span className="text-lg font-extrabold tracking-tight text-slate-900 group-hover:text-slate-950 transition-colors">
+            <span className="text-lg font-extrabold tracking-tight text-on-surface transition-colors">
               Solstice
             </span>
             <span
               className={cn(
                 'font-caveat text-2xl font-bold ml-1.5 lowercase tracking-wide transition-transform duration-200 group-hover:scale-105 origin-left',
-                tool.brandColorClass || 'text-slate-600'
+                tool.brandColorClass || 'text-on-surface-variant'
               )}
             >
               {tool.brandSuffix || tool.id}
@@ -49,12 +49,12 @@ export const AppCard: React.FC<AppCardProps> = ({ tool, isOpen, onLaunch }) => {
           </div>
 
           {isOpen ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full shrink-0">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 px-2 py-0.5 rounded-full shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Running
             </span>
           ) : !tool.isAvailable ? (
-            <span className="text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-full shrink-0">
+            <span className="text-[10px] font-medium text-on-surface-variant bg-surface-container/60 border border-outline-variant/25 px-2 py-0.5 rounded-full shrink-0">
               Coming Soon
             </span>
           ) : null}

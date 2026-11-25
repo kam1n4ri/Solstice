@@ -11,7 +11,36 @@ export interface RecentDocItem {
 }
 
 const STORAGE_KEY = 'solstice_recent_documents';
+const DOCS_DISMISSED_STORAGE_KEY = 'solstice:docs:dismissed_recents';
 const SUPPORTED_EXTS = ['.html', '.htm', '.docx', '.md', '.txt'];
+
+function getDismissedDocs(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DOCS_DISMISSED_STORAGE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissRecentDoc(idOrPath: string): void {
+  if (!idOrPath) return;
+  try {
+    const dismissed = getDismissedDocs();
+    dismissed.add(idOrPath);
+    localStorage.setItem(DOCS_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+  } catch {}
+}
+
+function undismissRecentDoc(idOrPath: string): void {
+  if (!idOrPath) return;
+  try {
+    const dismissed = getDismissedDocs();
+    if (dismissed.delete(idOrPath)) {
+      localStorage.setItem(DOCS_DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(dismissed)));
+    }
+  } catch {}
+}
 
 export function getFormatFromPath(
   filePath?: string,
@@ -83,6 +112,9 @@ export function saveRecentDoc(item: {
       return getRecentDocs();
     }
 
+    if (item.filePath) undismissRecentDoc(item.filePath);
+    if (item.id) undismissRecentDoc(item.id);
+
     const existing = getRecentDocs();
     const cleanFormat = getFormatFromPath(
       item.filePath,
@@ -141,12 +173,13 @@ export async function fetchMergedRecentDocs(): Promise<RecentDocItem[]> {
       const local = getRecentDocs();
       const localMap = new Map(local.map((d) => [d.filePath || d.id, d]));
 
-      // 1. Authoritative backend documents on disk
+      // 1. Authoritative backend documents on disk (excluding explicitly dismissed entries)
+      const dismissed = getDismissedDocs();
       const seen = new Set<string>();
       const merged: RecentDocItem[] = [];
 
       for (const file of docsFiles) {
-        if (seen.has(file.filePath)) continue;
+        if (dismissed.has(file.filePath) || seen.has(file.filePath)) continue;
         seen.add(file.filePath);
 
         const cached = localMap.get(file.filePath);
@@ -174,14 +207,29 @@ export async function fetchMergedRecentDocs(): Promise<RecentDocItem[]> {
 
 export async function removeRecentDocAsync(
   id: string,
-  deleteFromDisk: boolean = true
+  deleteFromDisk: boolean = true,
+  filePath?: string
 ): Promise<RecentDocItem[]> {
-  const updated = removeRecentDoc(id);
-  if (id) {
-    if (deleteFromDisk && window.solsticeAPI?.deleteFile) {
-      await window.solsticeAPI.deleteFile(id).catch(console.error);
-    } else if (window.solsticeAPI?.removeRecentFile) {
-      await window.solsticeAPI.removeRecentFile(id, deleteFromDisk).catch(console.error);
+  const existing = getRecentDocs().find((d) => d.id === id || d.filePath === id);
+  const targetPath = filePath || existing?.filePath || id;
+  let updated = removeRecentDoc(id);
+  if (targetPath && targetPath !== id) {
+    updated = removeRecentDoc(targetPath);
+  }
+
+  if (deleteFromDisk) {
+    if (targetPath && window.solsticeAPI?.deleteFile) {
+      await window.solsticeAPI.deleteFile(targetPath).catch(console.error);
+    } else if (targetPath && window.solsticeAPI?.removeRecentFile) {
+      await window.solsticeAPI.removeRecentFile(targetPath, true).catch(console.error);
+    }
+    undismissRecentDoc(id);
+    if (targetPath) undismissRecentDoc(targetPath);
+  } else {
+    dismissRecentDoc(id);
+    if (targetPath) dismissRecentDoc(targetPath);
+    if (targetPath && window.solsticeAPI?.removeRecentFile) {
+      await window.solsticeAPI.removeRecentFile(targetPath, false).catch(console.error);
     }
   }
   return updated;

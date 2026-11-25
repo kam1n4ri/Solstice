@@ -1,11 +1,13 @@
 import { PDFDocument } from 'pdf-lib';
 import {
+  PdfConvertImageInput,
   PdfConvertImagesPayload,
   PdfConvertImagesResult,
   PdfExportImagesPayload,
   PdfExportImagesResult,
 } from '@shared/types';
 import { invoke } from '@tauri-apps/api/core';
+import { embedRasterImage } from './pdfImageUtils';
 
 // Standard A4 dimensions in points
 const A4_WIDTH = 595.28;
@@ -22,70 +24,40 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return bytes;
 }
 
-async function convertImageToPngBytes(rawBytes: Uint8Array, mimeType: string): Promise<Uint8Array> {
-  const blob = new Blob([rawBytes.buffer as ArrayBuffer], { type: mimeType });
-  const objectUrl = URL.createObjectURL(blob);
-
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context unavailable'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      canvas.toBlob((b) => {
-        if (!b) {
-          reject(new Error('Failed to convert image to PNG'));
-          return;
-        }
-        b.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(reject);
-      }, 'image/png');
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Failed to load image for conversion'));
-    };
-    img.src = objectUrl;
-  });
-}
-
 export async function executePdfConvertImages(
   payload: PdfConvertImagesPayload
 ): Promise<PdfConvertImagesResult> {
   try {
-    if (!payload.imagePaths || payload.imagePaths.length === 0) {
-      return { success: false, error: 'No image paths provided for PDF conversion.' };
+    const inputs: PdfConvertImageInput[] = payload.images?.length
+      ? payload.images
+      : (payload.imagePaths || []).map((filePath) => ({
+          filePath,
+          fileName: filePath.split(/[/\\]/).pop() || 'image.png',
+        }));
+
+    if (inputs.length === 0) {
+      return { success: false, error: 'No image files provided for PDF conversion.' };
     }
 
     const doc = await PDFDocument.create();
-    const margin = payload.margin ?? 18;
+    const margin = Math.max(0, payload.margin ?? 18);
     const fitMode = payload.fitToPage || 'a4-contain';
 
-    for (const imagePath of payload.imagePaths) {
-      const readRes = await invoke<any>('pdf_read_file', { filePath: imagePath });
-      if (!readRes.success || !readRes.data) {
-        return { success: false, error: `Failed to read image file: ${imagePath}` };
-      }
-
-      const rawBytes = new Uint8Array(readRes.data);
-      const lower = imagePath.toLowerCase();
-
-      let embeddedImage;
-      if (lower.endsWith('.png')) {
-        embeddedImage = await doc.embedPng(rawBytes);
-      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-        embeddedImage = await doc.embedJpg(rawBytes);
+    for (const item of inputs) {
+      let rawBytes: Uint8Array;
+      if (item.fileData) {
+        rawBytes = new Uint8Array(item.fileData);
+      } else if (item.filePath) {
+        const readRes = await invoke<any>('pdf_read_file', { filePath: item.filePath });
+        if (!readRes.success || !readRes.data) {
+          return { success: false, error: `Failed to read image file: ${item.filePath}` };
+        }
+        rawBytes = new Uint8Array(readRes.data);
       } else {
-        // Fallback convert webp/bmp/gif to PNG
-        const pngBytes = await convertImageToPngBytes(rawBytes, 'image/png');
-        embeddedImage = await doc.embedPng(pngBytes);
+        return { success: false, error: `Missing image data for ${item.fileName}` };
       }
+
+      const embeddedImage = await embedRasterImage(doc, rawBytes, item.fileName || item.filePath);
 
       const imgWidth = embeddedImage.width;
       const imgHeight = embeddedImage.height;
@@ -172,10 +144,13 @@ export async function executePdfExportImages(
       return { success: false, error: 'No rendered images provided to export.' };
     }
 
+    const rawBase = (payload.baseName || 'Document')
+      .replace(/\.pdf$/i, '')
+      .replace(/[/\\?%*:|"<>]/g, '-')
+      .trim() || 'Document';
     const files = payload.images.map((img) => {
       const ext = img.dataUrl.startsWith('data:image/jpeg') ? 'jpg' : 'png';
-      const base = payload.baseName || 'Document';
-      const fileName = `${base}_page_${img.pageNumber}.${ext}`;
+      const fileName = `${rawBase}_page_${img.pageNumber}.${ext}`;
       const bytes = dataUrlToBytes(img.dataUrl);
       return {
         fileName,

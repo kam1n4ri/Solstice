@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Upload, X } from 'lucide-react';
 import { WatermarkOptions, WATERMARK_PRESETS } from './PdfWatermarkTypes';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 interface PdfWatermarkContentOptionsProps {
   options: WatermarkOptions;
@@ -13,6 +14,34 @@ export const PdfWatermarkContentOptions: React.FC<PdfWatermarkContentOptionsProp
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (options.imageDataUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(options.imageDataUrl);
+      }
+    };
+  }, [options.imageDataUrl]);
+
+  const applyImageBytes = useCallback(
+    (bytes: Uint8Array, fileName: string, filePath?: string) => {
+      const lower = fileName.toLowerCase();
+      const mime = lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+        ? 'image/webp'
+        : 'image/jpeg';
+      const dataUrl = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: mime }));
+      onChangeOptions((prev) => ({
+        ...prev,
+        imagePath: filePath,
+        imageData: filePath ? undefined : bytes,
+        imageFileName: fileName,
+        imageDataUrl: dataUrl,
+      }));
+    },
+    [onChangeOptions]
+  );
+
   const handleSelectImageFile = async () => {
     try {
       if (!window.solsticeAPI?.pdfSelectImages || !window.solsticeAPI?.pdfReadFile) return;
@@ -22,16 +51,7 @@ export const PdfWatermarkContentOptions: React.FC<PdfWatermarkContentOptionsProp
         const fileName = filePath.split(/[/\\]/).pop() || 'watermark.png';
         const readRes = await window.solsticeAPI.pdfReadFile(filePath);
         if (readRes.success && readRes.data) {
-          const bytes = new Uint8Array(readRes.data);
-          const mime = filePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-          const blob = new Blob([bytes], { type: mime });
-          const dataUrl = URL.createObjectURL(blob);
-          onChangeOptions((prev) => ({
-            ...prev,
-            imagePath: filePath,
-            imageFileName: fileName,
-            imageDataUrl: dataUrl,
-          }));
+          applyImageBytes(new Uint8Array(readRes.data), fileName, filePath);
         }
       }
     } catch (err) {
@@ -45,17 +65,31 @@ export const PdfWatermarkContentOptions: React.FC<PdfWatermarkContentOptionsProp
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       if (/\.(png|jpe?g|webp)$/i.test(file.name)) {
-        const dataUrl = URL.createObjectURL(file);
-        const filePath = (file as unknown as { path?: string }).path || undefined;
-        onChangeOptions((prev) => ({
-          ...prev,
-          imagePath: filePath,
-          imageFileName: file.name,
-          imageDataUrl: dataUrl,
-        }));
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const nativePath = (file as unknown as { path?: string }).path || undefined;
+        applyImageBytes(bytes, file.name, nativePath);
       }
     }
   };
+
+  const handleDropImagePaths = useCallback(
+    async (paths: string[]) => {
+      const imgPath = paths.find((p) => /\.(png|jpe?g|webp)$/i.test(p));
+      if (!imgPath || !window.solsticeAPI?.pdfReadFile) return;
+      const readRes = await window.solsticeAPI.pdfReadFile(imgPath).catch(() => null);
+      if (readRes?.success && readRes.data) {
+        const fileName = imgPath.split(/[/\\]/).pop() || 'watermark.png';
+        applyImageBytes(new Uint8Array(readRes.data), fileName, imgPath);
+      }
+    },
+    [applyImageBytes]
+  );
+
+  useTauriFileDrop({
+    enabled: options.type === 'image' && !options.imageDataUrl,
+    onDropPaths: handleDropImagePaths,
+    onDragChange: setIsDragOver,
+  });
 
   if (options.type === 'image') {
     return (

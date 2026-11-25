@@ -3,6 +3,64 @@ import { listen } from '@tauri-apps/api/event';
 import { InstalledFont } from '@shared/types';
 import { SolsticeAPI } from '@shared/types/api';
 
+function extractWoff2UrlsFromCss(
+  css: string,
+  name: string
+): { woff2Url: string; boldWoff2Url?: string } {
+  const extractFromBlocks = (blocks: string[]) => {
+    let regular = '';
+    let bold: string | undefined;
+    for (const block of blocks) {
+      const urlMatch = block.match(/src:\s*url\((https:[^)]+\.woff2)\)/i);
+      if (!urlMatch?.[1]) continue;
+      const weightMatch = block.match(/font-weight:\s*([^;}\s]+)/i);
+      const weight = weightMatch?.[1]?.toLowerCase();
+      if ((weight === '700' || weight === 'bold') && !bold) {
+        bold = urlMatch[1];
+      } else if ((weight === '400' || weight === 'normal' || !weight) && !regular) {
+        regular = urlMatch[1];
+      }
+    }
+    if (!regular && blocks.length > 0) {
+      const firstMatch = blocks
+        .map((b) => b.match(/src:\s*url\((https:[^)]+\.woff2)\)/i)?.[1])
+        .find(Boolean);
+      if (firstMatch) regular = firstMatch;
+    }
+    return { regular, bold };
+  };
+
+  const latinBlocks = Array.from(
+    css.matchAll(/\/\*\s*latin\s*\*\/\s*(@font-face\s*\{[^}]*\})/gi),
+    (m) => m[1]
+  );
+  const latinResult = extractFromBlocks(latinBlocks);
+  let woff2Url = latinResult.regular;
+  let boldWoff2Url = latinResult.bold;
+
+  if (!woff2Url) {
+    const allBlocks = Array.from(css.matchAll(/@font-face\s*\{[^}]*\}/gi), (m) => m[0]);
+    const fallbackResult = extractFromBlocks(allBlocks);
+    woff2Url = fallbackResult.regular;
+    if (!boldWoff2Url) boldWoff2Url = fallbackResult.bold;
+  }
+
+  if (!woff2Url) {
+    const bareMatch = css.match(/src:\s*url\((https:[^)]+\.woff2)\)/i);
+    if (bareMatch?.[1]) {
+      woff2Url = bareMatch[1];
+    } else {
+      throw new Error(`Could not locate binary font package for ${name}`);
+    }
+  }
+
+  if (boldWoff2Url === woff2Url) {
+    boldWoff2Url = undefined;
+  }
+
+  return { woff2Url, boldWoff2Url };
+}
+
 export const tauriFontBridge: Partial<SolsticeAPI> = {
   getInstalledFonts: async (): Promise<InstalledFont[]> => {
     try {
@@ -33,41 +91,29 @@ export const tauriFontBridge: Partial<SolsticeAPI> = {
       }
 
       const css = await res.text();
-      const latinParts = css.split('/* latin */');
-      let woff2Url = '';
-      let boldWoff2Url: string | undefined;
-
-      if (latinParts.length > 1) {
-        const regularSection = latinParts[1].split('/*')[0];
-        const match = regularSection.match(/src:\s*url\((https:[^)]+\.woff2)\)/);
-        if (match && match[1]) woff2Url = match[1];
-
-        if (latinParts.length > 2) {
-          const boldSection = latinParts[2].split('/*')[0];
-          const boldMatch = boldSection.match(/src:\s*url\((https:[^)]+\.woff2)\)/);
-          if (boldMatch && boldMatch[1]) boldWoff2Url = boldMatch[1];
-        }
-      }
-
-      if (!woff2Url) {
-        const fallbackMatch = css.match(/src:\s*url\((https:[^)]+\.woff2)\)/);
-        if (fallbackMatch && fallbackMatch[1]) {
-          woff2Url = fallbackMatch[1];
-        } else {
-          throw new Error(`Could not locate binary font package for ${name}`);
-        }
-      }
+      const { woff2Url, boldWoff2Url } = extractWoff2UrlsFromCss(css, name);
 
       const fontRes = await fetch(woff2Url);
+      if (!fontRes.ok) {
+        throw new Error(`Font binary download returned HTTP ${fontRes.status}`);
+      }
       const fontBytes = new Uint8Array(await fontRes.arrayBuffer());
+      if (fontBytes.byteLength === 0) {
+        throw new Error(`Downloaded font binary for ${name} is empty`);
+      }
 
       let boldBytes: Uint8Array | undefined;
       let boldFileName: string | undefined;
       if (boldWoff2Url) {
         try {
           const boldRes = await fetch(boldWoff2Url);
-          boldBytes = new Uint8Array(await boldRes.arrayBuffer());
-          boldFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-bold.woff2`;
+          if (boldRes.ok) {
+            const candidate = new Uint8Array(await boldRes.arrayBuffer());
+            if (candidate.byteLength > 0) {
+              boldBytes = candidate;
+              boldFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-bold.woff2`;
+            }
+          }
         } catch {
           boldFileName = undefined;
         }

@@ -76,19 +76,52 @@ export const PdfProtectForm: React.FC<PdfProtectFormProps> = ({
 interface PdfUnlockFormProps {
   hasFile: boolean;
   isProcessing: boolean;
+  password: string;
+  setPassword: (val: string) => void;
+  showPassword: boolean;
+  setShowPassword: React.Dispatch<React.SetStateAction<boolean>>;
   onUnlock: () => void;
 }
 
 export const PdfUnlockForm: React.FC<PdfUnlockFormProps> = ({
   hasFile,
   isProcessing,
+  password,
+  setPassword,
+  showPassword,
+  setShowPassword,
   onUnlock,
 }) => (
   <div className="space-y-3">
-    <div className="p-4 rounded-xl bg-white border border-stone-200/80">
+    <div>
+      <label className="text-xs font-medium text-slate-700 block mb-1">
+        Document Password <span className="text-slate-400 font-normal">(optional for permission-only locks)</span>
+      </label>
+      <div className="relative">
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && hasFile && !isProcessing) onUnlock();
+          }}
+          placeholder="Enter open or owner password..."
+          className="w-full px-3 py-2 pr-9 rounded-xl border border-stone-200/90 bg-white text-xs text-slate-800 focus:outline-none focus:border-rose-300 font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((p) => !p)}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
+          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+
+    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60">
       <p className="text-xs font-semibold text-slate-800">Remove Password Protection</p>
       <p className="text-[11px] text-slate-500 mt-1">
-        Permanently strip security restrictions from this document. The saved copy will open without requiring passwords.
+        Decrypts all streams and strings (AES-256, AES-128, RC4) and saves a clean copy without passwords or restrictions.
       </p>
     </div>
 

@@ -1,5 +1,8 @@
 # AGENTS.md — Workspace Guidelines & Rules
 
+## Communication Style
+- **Plain, Simple Language**: The user is not a coder — always explain changes, status, options, and next steps in clear, everyday language without unnecessary technical jargon.
+
 ## UI & Styling Preferences
 - **Pale, Soft, Light-Valued Colors Only**:
   - The user strictly prefers pale, low-opacity, light-valued hues across all interfaces.
@@ -9,16 +12,14 @@
 
 ## Architecture & Code Discipline
 - Refer to `AGENT_RULES.md` for all core architectural rules:
-  - Strict multi-window Electron architecture (non-SPA).
+  - Strict multi-window Tauri v2 desktop architecture (non-SPA).
   - Modular file discipline: strictly < 250–300 lines of code per file.
-  - Non-blocking UI thread (heavy I/O offloaded to Electron Main).
-  - Strict typing across all IPC contracts and components.
-  - Maintain and update `PROGRESS.md` with every major adjustment.
+  - Non-blocking UI thread (heavy file I/O and native work in `src-tauri/` Rust backend).
+  - Strict typing across all TypeScript/Rust IPC contracts and components.
+  - Maintain and update `PROGRESS.md` concisely with every major adjustment.
 
-## Solstice PDF File Workflow (Strict & Permanent Rule)
-- **External PDF files must NEVER be mutated or edited in-place.**
-- When any PDF is opened (existing or new), an isolated working copy in `~/Documents/Solstice/PDFs/` is edited and saved.
-- This ensures the original is preserved untouched, and the working copy remains safe even if the external original is moved or deleted.
-- Exporting changes to external files is done via the **Export** button.
-- Do NOT open or track external file paths in the Recent Documents list—only track the Solstice working copy path so there are no duplicate cards.
-- When an external file is re-opened, reuse its existing working copy in `~/Documents/Solstice/PDFs/` (do NOT create duplicate `-1.pdf`, `-2.pdf` copies).
+## Solstice File Safety & Working-Copy Workflow (Strict & Permanent Rule)
+- **External user files (PDFs, Docs, Whiteboards) must NEVER be mutated or edited in-place.**
+- Isolated working copies in `~/Documents/Solstice/` (`PDFs/`, `Documents/`, `Whiteboards/`) are edited and saved instead, preserving originals untouched.
+- Exporting changes to external locations happens via the **Export** / **Save As** flow.
+- Do NOT create duplicate working copies (`-1`, `-2`) when re-opening an already-mapped external file, and only track the isolated working copy in Recents.

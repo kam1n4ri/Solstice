@@ -22,19 +22,27 @@ pub fn sanitize_whiteboard_title(title: &str) -> String {
         })
         .collect();
 
-    let stripped = cleaned
-        .trim_end_matches(".excalidraw")
-        .trim_end_matches(".EXCALIDRAW")
-        .trim_end_matches(".tldr")
-        .trim_end_matches(".json")
-        .trim_end_matches(".JSON")
-        .trim_end_matches(".solstice")
-        .trim();
+    let mut base = cleaned.trim().to_string();
+    loop {
+        let lower = base.to_lowercase();
+        let mut stripped_any = false;
+        for ext in [".excalidraw", ".tldr", ".json", ".solstice"] {
+            if lower.ends_with(ext) {
+                base.truncate(base.len() - ext.len());
+                base = base.trim().to_string();
+                stripped_any = true;
+                break;
+            }
+        }
+        if !stripped_any {
+            break;
+        }
+    }
 
-    if stripped.is_empty() {
+    if base.is_empty() {
         "Untitled whiteboard".to_string()
     } else {
-        stripped.to_string()
+        base
     }
 }
 
@@ -44,13 +52,22 @@ pub fn get_unique_whiteboard_path(
     ext: &str,
     current_path: Option<&str>,
 ) -> PathBuf {
-    let clean_ext = if ext.starts_with('.') {
-        ext.to_string()
+    let trimmed_base = base_name.trim();
+    let clean_base = if trimmed_base.is_empty() {
+        "Untitled whiteboard"
     } else {
-        format!(".{}", ext)
+        trimmed_base
+    };
+    let trimmed_ext = ext.trim();
+    let clean_ext = if trimmed_ext.is_empty() {
+        ".excalidraw".to_string()
+    } else if trimmed_ext.starts_with('.') {
+        trimmed_ext.to_string()
+    } else {
+        format!(".{}", trimmed_ext)
     };
 
-    let initial = dir.join(format!("{}{}", base_name, clean_ext));
+    let initial = dir.join(format!("{}{}", clean_base, clean_ext));
     if let Some(cp) = current_path {
         if cp == initial.to_string_lossy() {
             return initial;
@@ -63,7 +80,7 @@ pub fn get_unique_whiteboard_path(
 
     let mut counter = 1;
     loop {
-        let candidate = dir.join(format!("{} ({}){}", base_name, counter, clean_ext));
+        let candidate = dir.join(format!("{} ({}){}", clean_base, counter, clean_ext));
         if let Some(cp) = current_path {
             if cp == candidate.to_string_lossy() {
                 return candidate;

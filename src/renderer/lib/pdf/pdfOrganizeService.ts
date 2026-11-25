@@ -45,10 +45,13 @@ export async function executePdfOrganize(payload: PdfOrganizePayload): Promise<P
 
     const organizedBytes = await newDoc.save();
     const defaultName = payload.defaultName || `Organized_${Date.now()}.pdf`;
+    const targetPath = !payload.saveAsCopy ? payload.filePath : undefined;
 
     const saveRes = await invoke<any>('pdf_save_file', {
       payload: {
+        filePath: targetPath,
         fileName: defaultName,
+        title: defaultName.replace(/\.pdf$/i, ''),
         data: Array.from(organizedBytes),
       },
     });

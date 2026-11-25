@@ -50,6 +50,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
   }, []);
 
   const autoSaveCallbackRef = useRef<() => void>(() => {});
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setIsDirty = useCallback((dirty: boolean) => {
     setIsDirtyState(dirty);
@@ -59,9 +60,21 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
   }, []);
 
   const flashStatus = useCallback((msg: string) => {
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
     setStatusText(msg);
-    if (msg !== 'Saving...') {
-      setTimeout(() => setStatusText('All changes saved'), 2400);
+    const isTransientSuccess =
+      msg === 'Saved to disk' ||
+      msg === 'New document created' ||
+      msg === 'Opened file' ||
+      msg === 'Exported successfully';
+    if (isTransientSuccess) {
+      statusTimerRef.current = setTimeout(() => {
+        setStatusText('All changes saved');
+        statusTimerRef.current = null;
+      }, 2400);
     }
   }, []);
 
@@ -129,6 +142,18 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
     }
   }, [handleOpenFile]);
 
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel((prev) => Math.max(50, Math.min(200, Math.round((prev + 10) / 5) * 5)));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel((prev) => Math.max(50, Math.min(200, Math.round((prev - 10) / 5) * 5)));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setZoomLevel(100);
+  }, []);
+
   useEffect(() => {
     const handleBeforeUnload = () => {
       flushAutoSave();
@@ -136,6 +161,10 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
+        statusTimerRef.current = null;
+      }
       flushAutoSave();
       window.solsticeAPI?.docsSetDirty?.(false);
     };
@@ -145,6 +174,10 @@ export const DocsView: React.FC<DocsViewProps> = ({ initialDocument, onBackToHom
     onToggleFindReplace: () => setShowFindReplace((prev) => !prev),
     onOpenFindReplace: handleOpenFindReplace,
     onToggleWordCount: () => setShowWordCountModal((prev) => !prev),
+    onOpenLinkModal: () => setShowLinkModal(true),
+    onZoomIn: handleZoomIn,
+    onZoomOut: handleZoomOut,
+    onZoomReset: handleZoomReset,
     onNew: handleNewDocument,
     onPrint: () => window.print(),
     onSave: handleSaveDocument,

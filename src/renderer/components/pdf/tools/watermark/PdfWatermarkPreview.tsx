@@ -82,14 +82,14 @@ export const PdfWatermarkPreview: React.FC<PdfWatermarkPreviewProps> = ({
     if (options.pagesScope === 'all') return true;
     if (options.pagesScope === 'odd') return currentPage % 2 !== 0;
     if (options.pagesScope === 'even') return currentPage % 2 === 0;
-    if (options.pagesScope === 'range' && options.customPages) {
-      const tokens = options.customPages.split(',').map((s) => s.trim()).filter(Boolean);
+    if (options.pagesScope === 'range') {
+      const tokens = (options.customPages || '').split(',').map((s) => s.trim()).filter(Boolean);
       for (const token of tokens) {
         if (token.includes('-')) {
           const [startStr, endStr] = token.split('-');
           const start = parseInt(startStr, 10);
           const end = parseInt(endStr, 10);
-          if (currentPage >= start && currentPage <= end) return true;
+          if (!isNaN(start) && !isNaN(end) && currentPage >= start && currentPage <= end) return true;
         } else if (parseInt(token, 10) === currentPage) {
           return true;
         }

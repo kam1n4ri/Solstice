@@ -4,6 +4,7 @@ export interface ImageItem {
   fileName: string;
   fileSize: number;
   previewUrl?: string;
+  fileData?: Uint8Array;
 }
 
 export interface RenderedPageImage {

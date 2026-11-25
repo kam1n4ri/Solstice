@@ -1,11 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { SolsticeAPI } from '@shared/types/api';
 import { ToolId, WindowOpenResult, WindowStateInfo } from '@shared/types';
 import { toByteArray } from './byteUtils';
 import { tauriPdfBridge } from './pdf/tauriPdfBridge';
 import { tauriWhiteboardBridge } from './whiteboard/tauriWhiteboardBridge';
 import { tauriFontBridge } from './hub/tauriFontBridge';
+import { tauriHubBridge } from './hub/tauriHubBridge';
 
 /**
  * Native Tauri v2 bridge for Solstice.
@@ -90,9 +92,11 @@ export function initTauriBridge(): void {
       try {
         return await invoke<string>('get_app_version');
       } catch {
-        return '0.1.0-native';
+        return '0.1.0';
       }
     },
+
+    ...tauriHubBridge,
 
     minimizeWindow: () => {
       invoke('minimize_window').catch(() => {});
@@ -102,10 +106,14 @@ export function initTauriBridge(): void {
       invoke('maximize_window').catch(() => {});
     },
 
-    closeWindow: (_force?: boolean) => {
-      invoke('close_window').catch(() => {
+    closeWindow: (force?: boolean) => {
+      invoke('close_window', { force: Boolean(force) }).catch(() => {
         window.close();
       });
+    },
+
+    cancelClose: () => {
+      invoke('cancel_close').catch(() => {});
     },
 
     // Native Docs File IPC
@@ -143,7 +151,13 @@ export function initTauriBridge(): void {
     },
 
     docsAutoSave: async (payload) => {
-      return await invoke('docs_auto_save', { payload });
+      const data = payload.data ? toByteArray(payload.data) : undefined;
+      return await invoke('docs_auto_save', {
+        payload: {
+          ...payload,
+          data,
+        },
+      });
     },
 
     docsExportFile: async (payload) => {
@@ -162,10 +176,6 @@ export function initTauriBridge(): void {
 
     docsSetDirty: (_isDirty: boolean) => {
       // In Tauri mode, dirty status tracking
-    },
-
-    docsConfirmUnsaved: async () => {
-      return 'dont-save';
     },
 
     // Hub Recent Files IPC
@@ -238,9 +248,10 @@ export function initTauriBridge(): void {
       let isUnsubscribed = false;
       let unlistenFn: (() => void) | null = null;
 
-      listen('save-and-close-requested', () => {
-        if (!isUnsubscribed) callback();
-      })
+      getCurrentWebviewWindow()
+        .listen('save-and-close-requested', () => {
+          if (!isUnsubscribed) callback();
+        })
         .then((unlisten) => {
           if (isUnsubscribed) unlisten();
           else unlistenFn = unlisten;
@@ -249,19 +260,22 @@ export function initTauriBridge(): void {
           console.warn('Failed to listen to save-and-close-requested:', err);
         });
 
-      const handleBeforeUnload = () => {
-        if (!isUnsubscribed) callback();
-      };
-      window.addEventListener('beforeunload', handleBeforeUnload);
-
       return () => {
         isUnsubscribed = true;
         unlistenFn?.();
-        window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     },
 
     openExternalUrl: async (url: string): Promise<boolean> => {
+      try {
+        const parsed = new URL(url, window.location.href);
+        if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+
       try {
         const { open } = await import('@tauri-apps/plugin-shell');
         await open(url);

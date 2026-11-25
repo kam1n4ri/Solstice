@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Hash, FolderOpen, Loader2 } from 'lucide-react';
 import { ActivePdfDocument } from '../PdfContainer';
 import { pdfjsLib, PDFDocumentProxy } from '../pdfjsSetup';
@@ -7,6 +7,7 @@ import { PdfPageNumberEmptyState } from './page-numbers/PdfPageNumberEmptyState'
 import { PdfPageNumberPreview } from './page-numbers/PdfPageNumberPreview';
 import { PdfPageNumberInspector } from './page-numbers/PdfPageNumberInspector';
 import { PdfPageNumberResultView } from './page-numbers/PdfPageNumberResultView';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 interface PdfPageNumberToolProps {
   onClose: () => void;
@@ -86,10 +87,14 @@ export const PdfPageNumberTool: React.FC<PdfPageNumberToolProps> = ({
 
   const handleDropFile = async (droppedFile: File) => {
     try {
+      if (!droppedFile.name.toLowerCase().endsWith('.pdf')) {
+        setError('Please drop a valid PDF file.');
+        return;
+      }
       const buffer = await droppedFile.arrayBuffer();
       const droppedPath = 'path' in droppedFile && typeof droppedFile.path === 'string'
         ? droppedFile.path
-        : droppedFile.name;
+        : null;
       setFilePath(droppedPath);
       setFileName(droppedFile.name);
       setOutputName(`Numbered_${droppedFile.name}`);
@@ -100,6 +105,26 @@ export const PdfPageNumberTool: React.FC<PdfPageNumberToolProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load dropped file');
     }
   };
+
+  const handleDropPaths = useCallback(async (paths: string[]) => {
+    const pdfPath = paths.find((p) => p.toLowerCase().endsWith('.pdf'));
+    if (!pdfPath || !window.solsticeAPI?.pdfReadFile) return;
+    const readRes = await window.solsticeAPI.pdfReadFile(pdfPath).catch(() => null);
+    if (readRes?.success && readRes.data) {
+      const name = pdfPath.split(/[/\\]/).pop() || 'Document.pdf';
+      setFilePath(pdfPath);
+      setFileName(name);
+      setOutputName(`Numbered_${name}`);
+      setFileData(new Uint8Array(readRes.data));
+      setResult(null);
+      setError(null);
+    }
+  }, []);
+
+  useTauriFileDrop({
+    enabled: !fileData && !result,
+    onDropPaths: handleDropPaths,
+  });
 
   const handleApplyPageNumbers = async () => {
     if (!fileData) {

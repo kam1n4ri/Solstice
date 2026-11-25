@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ActivePdfDocument } from '../../PdfContainer';
 import { pdfjsLib, PDFDocumentProxy } from '../../pdfjsSetup';
 import { SplitPartition, SplitResultFile } from './PdfSplitTypes';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 import {
   reindexPartitions,
   syncTypedRanges,
@@ -42,10 +43,15 @@ export function usePdfSplitState({ currentDocument }: UsePdfSplitStateProps) {
       return;
     }
     let isCancelled = false;
+    let loadedProxy: PDFDocumentProxy | null = null;
     pdfjsLib
       .getDocument({ data: fileData.slice() })
       .promise.then((proxy) => {
-        if (isCancelled) return;
+        if (isCancelled) {
+          proxy.destroy().catch(() => {});
+          return;
+        }
+        loadedProxy = proxy;
         setDocProxy(proxy);
         const count = proxy.numPages;
         setTotalPages(count);
@@ -56,12 +62,15 @@ export function usePdfSplitState({ currentDocument }: UsePdfSplitStateProps) {
         setTypedRanges(syncTypedRanges(initial));
       })
       .catch((err) => {
-        console.error('[Split] Error loading PDF proxy:', err);
-        setError('Failed to parse PDF document.');
+        if (!isCancelled) {
+          console.error('[Split] Error loading PDF proxy:', err);
+          setError('Failed to parse PDF document.');
+        }
       });
 
     return () => {
       isCancelled = true;
+      loadedProxy?.destroy?.().catch(() => {});
     };
   }, [fileData]);
 
@@ -192,10 +201,14 @@ export function usePdfSplitState({ currentDocument }: UsePdfSplitStateProps) {
 
   const handleDropFile = async (droppedFile: File) => {
     try {
+      if (!droppedFile.name.toLowerCase().endsWith('.pdf')) {
+        setError('Please drop a valid PDF file.');
+        return;
+      }
       const buffer = await droppedFile.arrayBuffer();
       const droppedPath = 'path' in droppedFile && typeof droppedFile.path === 'string'
         ? droppedFile.path
-        : droppedFile.name;
+        : null;
       setFilePath(droppedPath);
       setFileName(droppedFile.name);
       setFileData(new Uint8Array(buffer));
@@ -205,6 +218,28 @@ export function usePdfSplitState({ currentDocument }: UsePdfSplitStateProps) {
       setError(err instanceof Error ? err.message : 'Failed to load dropped file');
     }
   };
+
+  const handleDropPaths = useCallback(async (paths: string[]) => {
+    const pdfPath = paths.find((p) => p.toLowerCase().endsWith('.pdf'));
+    if (!pdfPath || !window.solsticeAPI?.pdfReadFile) return;
+    try {
+      const readRes = await window.solsticeAPI.pdfReadFile(pdfPath);
+      if (readRes.success && readRes.data) {
+        setFilePath(pdfPath);
+        setFileName(pdfPath.split(/[/\\]/).pop() || 'Document.pdf');
+        setFileData(new Uint8Array(readRes.data));
+        setSplitResults(null);
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load dropped PDF file');
+    }
+  }, []);
+
+  useTauriFileDrop({
+    enabled: !fileData && !splitResults,
+    onDropPaths: handleDropPaths,
+  });
 
   const handleSplit = async () => {
     if (!fileData) {

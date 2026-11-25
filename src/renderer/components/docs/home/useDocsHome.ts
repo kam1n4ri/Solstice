@@ -129,7 +129,7 @@ export function useDocsHome({ onOpenDocument, initialErrorMessage }: UseDocsHome
           setPreparingId(null);
           const reason = res.error || 'The file may have been moved, renamed, or deleted.';
           setErrorMessage(`Unable to open "${doc.title}": ${reason}`);
-          await removeRecentDocAsync(doc.id, false);
+          await removeRecentDocAsync(doc.id, false, doc.filePath);
           loadDocuments();
           return;
         }
@@ -157,7 +157,7 @@ export function useDocsHome({ onOpenDocument, initialErrorMessage }: UseDocsHome
   const handleConfirmRemoveFromRecents = useCallback(
     async (doc: RecentDocItem) => {
       setDeletingDoc(null);
-      const updated = await removeRecentDocAsync(doc.id, false);
+      const updated = await removeRecentDocAsync(doc.id, false, doc.filePath);
       setDocuments(updated);
     },
     []
@@ -166,7 +166,7 @@ export function useDocsHome({ onOpenDocument, initialErrorMessage }: UseDocsHome
   const handleConfirmDeleteFromDisk = useCallback(
     async (doc: RecentDocItem) => {
       setDeletingDoc(null);
-      const updated = await removeRecentDocAsync(doc.id, true);
+      const updated = await removeRecentDocAsync(doc.id, true, doc.filePath);
       setDocuments(updated);
     },
     []

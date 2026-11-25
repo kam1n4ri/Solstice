@@ -35,6 +35,7 @@ export const DocsHeader: React.FC<DocsHeaderProps> = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const exportContainerRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLocalTitle(title);
@@ -42,6 +43,7 @@ export const DocsHeader: React.FC<DocsHeaderProps> = ({
 
   useEffect(() => () => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
   const commitTitle = (val?: string) => {
@@ -62,8 +64,14 @@ export const DocsHeader: React.FC<DocsHeaderProps> = ({
   };
 
   const showToast = (msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(msg);
-    setTimeout(() => setToastMessage((c) => (c === msg ? null : c)), 3500);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage((c) => (c === msg ? null : c));
+      toastTimerRef.current = null;
+    }, 3500);
   };
 
   const handleRenameFocus = () => {

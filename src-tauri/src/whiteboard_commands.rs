@@ -101,21 +101,36 @@ pub async fn whiteboard_auto_save(
     let target_path = match payload.file_path {
         Some(ref fp) if !fp.is_empty() => {
             let path = PathBuf::from(fp);
-            if path.parent() == Some(&whiteboards_dir) {
-                let current_ext = path
+            let canon_dir = whiteboards_dir.canonicalize().unwrap_or_else(|_| whiteboards_dir.clone());
+            let canon_parent = path
+                .parent()
+                .and_then(|p| p.canonicalize().ok())
+                .unwrap_or_else(|| path.parent().map(|p| p.to_path_buf()).unwrap_or_default());
+
+            if canon_parent == canon_dir {
+                let raw_ext = path
                     .extension()
                     .and_then(|e| e.to_str())
                     .unwrap_or("excalidraw");
-                let desired_name = format!("{}.{}", clean_title, current_ext);
+                // Never overwrite a legacy tldraw (.tldr) file with Excalidraw JSON
+                let target_ext = if raw_ext.eq_ignore_ascii_case("tldr") {
+                    "excalidraw"
+                } else {
+                    raw_ext
+                };
+                let desired_name = format!("{}.{}", clean_title, target_ext);
                 if path.file_name().and_then(|n| n.to_str()) != Some(&desired_name) {
                     let unique = get_unique_whiteboard_path(
                         &whiteboards_dir,
                         &clean_title,
-                        current_ext,
+                        target_ext,
                         Some(fp),
                     );
                     if unique != path {
-                        let _ = fs::rename(&path, &unique);
+                        if path.exists() && !raw_ext.eq_ignore_ascii_case("tldr") {
+                            fs::rename(&path, &unique)
+                                .map_err(|e| format!("Failed to rename whiteboard: {}", e))?;
+                        }
                         unique
                     } else {
                         path
@@ -124,7 +139,8 @@ pub async fn whiteboard_auto_save(
                     path
                 }
             } else {
-                path
+                // External files (including .tldr / .solstice) are isolated into Whiteboards working dir
+                get_unique_whiteboard_path(&whiteboards_dir, &clean_title, ".excalidraw", None)
             }
         }
         _ => get_unique_whiteboard_path(&whiteboards_dir, &clean_title, ".excalidraw", None),
@@ -166,7 +182,8 @@ pub async fn whiteboard_save_file(
         .set_title("Save Whiteboard As")
         .set_directory(&default_dir)
         .set_file_name(&default_file_name)
-        .add_filter("Solstice Whiteboard (*.excalidraw)", &["excalidraw"])
+        .add_filter("Excalidraw Whiteboard (*.excalidraw)", &["excalidraw"])
+        .add_filter("Solstice Whiteboard (*.solstice)", &["solstice"])
         .add_filter("JSON Document (*.json)", &["json"])
         .save_file()
         .await;

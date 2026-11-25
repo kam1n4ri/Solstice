@@ -6,6 +6,7 @@ import {
   PdfPageNumberResult,
 } from '@shared/types';
 import { invoke } from '@tauri-apps/api/core';
+import { embedRasterImage } from './pdfImageUtils';
 
 function hexToRgb(hex?: string): { r: number; g: number; b: number } {
   if (!hex || !/^#[0-9a-fA-F]{3,8}$/.test(hex)) {
@@ -33,18 +34,21 @@ function getFilteredPageIndices(
     for (let i = 0; i < totalPages; i += 2) indices.push(i);
   } else if (scope === 'even') {
     for (let i = 1; i < totalPages; i += 2) indices.push(i);
-  } else if (scope === 'range' && customPages) {
-    const tokens = customPages.split(',').map((s) => s.trim()).filter(Boolean);
+  } else if (scope === 'range') {
+    const tokens = (customPages || '').split(',').map((s) => s.trim()).filter(Boolean);
     const set = new Set<number>();
     for (const token of tokens) {
       if (token.includes('-')) {
         const [startStr, endStr] = token.split('-');
-        const start = Math.max(1, parseInt(startStr, 10) || 1);
-        const end = Math.min(totalPages, parseInt(endStr, 10) || start);
+        const rawStart = parseInt(startStr, 10);
+        const rawEnd = parseInt(endStr, 10);
+        if (isNaN(rawStart) || isNaN(rawEnd)) continue;
+        const start = Math.max(1, rawStart);
+        const end = Math.min(totalPages, rawEnd);
         for (let p = start; p <= end; p++) set.add(p - 1);
       } else {
         const p = parseInt(token, 10);
-        if (p >= 1 && p <= totalPages) set.add(p - 1);
+        if (!isNaN(p) && p >= 1 && p <= totalPages) set.add(p - 1);
       }
     }
     return Array.from(set).sort((a, b) => a - b);
@@ -75,7 +79,8 @@ export async function executePdfWatermark(payload: PdfWatermarkPayload): Promise
 
     const isImage = payload.type === 'image';
     const opacity = payload.opacity ?? 0.22;
-    const angle = payload.rotation ?? 45;
+    // Negate CSS clockwise degrees to match PDF Cartesian counter-clockwise rotation
+    const angle = -(payload.rotation ?? 45);
     const rad = (angle * Math.PI) / 180;
     const xPercent = payload.xPercent ?? 50;
     const yPercent = payload.yPercent ?? 50;
@@ -95,13 +100,7 @@ export async function executePdfWatermark(payload: PdfWatermarkPayload): Promise
         return { success: false, error: 'No watermark image provided.' };
       }
 
-      const isPng = imgBytes[0] === 0x89 && imgBytes[1] === 0x50 && imgBytes[2] === 0x4e && imgBytes[3] === 0x47;
-      let embeddedImg;
-      try {
-        embeddedImg = isPng ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
-      } catch {
-        embeddedImg = isPng ? await pdfDoc.embedJpg(imgBytes) : await pdfDoc.embedPng(imgBytes);
-      }
+      const embeddedImg = await embedRasterImage(pdfDoc, imgBytes, payload.imagePath);
 
       const imgScale = payload.imageScale ?? 0.35;
       for (const idx of targetIndices) {

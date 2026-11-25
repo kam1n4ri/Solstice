@@ -3,27 +3,139 @@
  * task lists, code blocks, blockquotes, headings, and inline formatting.
  */
 
+const SAFE_INLINE_TAGS = new Set([
+  'span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del',
+  'code', 'mark', 'sup', 'sub', 'br', 'hr', 'a', 'img',
+]);
+
+const SAFE_BLOCK_TAGS = new Set([
+  'p', 'div', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'pre', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li',
+]);
+
+function escapeAttr(val: string): string {
+  return val
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function sanitizeUrl(raw: string, allowDataImage = false): string | null {
+  const decoded = raw.replace(/[\u0000-\u0020]+/g, '').trim();
+  if (!decoded) return null;
+  if (decoded.startsWith('#') || decoded.startsWith('/') || decoded.startsWith('./') || decoded.startsWith('../')) {
+    return decoded;
+  }
+  const lower = decoded.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('mailto:')) {
+    return decoded;
+  }
+  if (allowDataImage && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[a-z0-9+/=]+$/i.test(decoded)) {
+    return decoded;
+  }
+  return null;
+}
+
+function sanitizeInlineHtmlTag(rawTag: string, allowBlocks = false): string | null {
+  const tagMatch = rawTag.match(/^<(\/?)([a-zA-Z0-9-]+)([\s\S]*?)(\/?)>$/);
+  if (!tagMatch) return null;
+  const [, isClosing, rawName, rawAttrs, selfClose] = tagMatch;
+  const name = rawName.toLowerCase();
+
+  if (!SAFE_INLINE_TAGS.has(name) && !(allowBlocks && SAFE_BLOCK_TAGS.has(name))) {
+    return null;
+  }
+  if (isClosing) {
+    return `</${name}>`;
+  }
+
+  let safeAttrs = '';
+  const attrRegex = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let attrMatch: RegExpExecArray | null;
+  while ((attrMatch = attrRegex.exec(rawAttrs)) !== null) {
+    const attrName = attrMatch[1].toLowerCase();
+    const attrVal = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? '';
+
+    if (attrName.startsWith('on') || attrName === 'srcdoc' || attrName === 'formaction') {
+      continue;
+    }
+    if (attrName === 'href' || attrName === 'src') {
+      const safe = sanitizeUrl(attrVal, attrName === 'src' && name === 'img');
+      if (safe) safeAttrs += ` ${attrName}="${escapeAttr(safe)}"`;
+    } else if (attrName === 'style') {
+      if (!/(expression\s*\(|javascript:|vbscript:|@import|url\s*\()/i.test(attrVal)) {
+        safeAttrs += ` style="${escapeAttr(attrVal)}"`;
+      }
+    } else if (['alt', 'title', 'class', 'data-type', 'data-checked', 'colspan', 'rowspan', 'align'].includes(attrName)) {
+      safeAttrs += ` ${attrName}="${escapeAttr(attrVal)}"`;
+    }
+  }
+
+  return `<${name}${safeAttrs}${selfClose ? ' /' : ''}>`;
+}
+
+function unescapeBasicEntities(val: string): string {
+  return val
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function sanitizeHtmlBlock(html: string): string {
+  return html
+    .replace(/<(script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<\/?[a-zA-Z][^>]*>/g, (tag) => sanitizeInlineHtmlTag(tag, true) ?? '');
+}
+
 export function formatInlineMarkdown(text: string): string {
   const tagPlaceholders: string[] = [];
-  const withTagsMasked = text.replace(/<\/?[a-zA-Z][^>]*>/g, (match) => {
-    tagPlaceholders.push(match);
+  const maskToken = (html: string): string => {
+    tagPlaceholders.push(html);
     return `\uE000${tagPlaceholders.length - 1}\uE000`;
+  };
+
+  let working = text.replace(/<\/?[a-zA-Z][^>]*>/g, (match) => {
+    const sanitized = sanitizeInlineHtmlTag(match);
+    return sanitized ? maskToken(sanitized) : match;
   });
 
-  const escaped = withTagsMasked
+  working = working
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  const formatted = escaped
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/__(.*?)__/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/_(.*?)_/g, '<em>$1</em>')
-    .replace(/~~(.*?)~~/g, '<s>$1</s>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Mask inline code spans before emphasis/links so underscores & asterisks inside code are preserved verbatim
+  working = working.replace(/`([^`]+)`/g, (_m, codeInner: string) => maskToken(`<code>${codeInner}</code>`));
+
+  const stripOptionalTitle = (urlSpec: string): string => {
+    const trimmed = urlSpec.trim();
+    const titleMatch = trimmed.match(/^([^\s]+)\s+(?:"[^"]*"|'[^']*')$/);
+    return titleMatch ? titleMatch[1] : trimmed;
+  };
+
+  // Mask generated img/a tags so underscores in URLs are never turned into <em>
+  working = working
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, rawSrc: string) => {
+      const cleanSrc = stripOptionalTitle(unescapeBasicEntities(rawSrc));
+      const cleanAlt = unescapeBasicEntities(alt);
+      const safeSrc = sanitizeUrl(cleanSrc, true);
+      if (!safeSrc) return alt;
+      return maskToken(`<img src="${escapeAttr(safeSrc)}" alt="${escapeAttr(cleanAlt)}" />`);
+    })
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label: string, rawHref: string) => {
+      const cleanHref = stripOptionalTitle(unescapeBasicEntities(rawHref));
+      const safeHref = sanitizeUrl(cleanHref, false);
+      if (!safeHref) return label;
+      return maskToken(`<a href="${escapeAttr(safeHref)}">${label}</a>`);
+    });
+
+  const formatted = working
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+    .replace(/(^|[^\w])_([^_\n]+?)_(?=[^\w]|$)/g, '$1<em>$2</em>')
+    .replace(/~~(.+?)~~/g, '<s>$1</s>');
 
   return formatted.replace(/\uE000(\d+)\uE000/g, (_, idx) => tagPlaceholders[Number(idx)] || '');
 }
@@ -31,7 +143,7 @@ export function formatInlineMarkdown(text: string): string {
 export function markdownToHtml(md: string): string {
   if (!md) return '<p></p>';
   if (/^\s*<!DOCTYPE/i.test(md) || /^\s*<html/i.test(md)) {
-    return md;
+    return sanitizeHtmlBlock(md);
   }
 
   const lines = md.split(/\r?\n/);
@@ -119,19 +231,11 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
-    if (/^###\s+(.*$)/.test(line)) {
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
       closeList();
-      htmlLines.push(`<h3>${formatInlineMarkdown(line.replace(/^###\s+/, ''))}</h3>`);
-      continue;
-    }
-    if (/^##\s+(.*$)/.test(line)) {
-      closeList();
-      htmlLines.push(`<h2>${formatInlineMarkdown(line.replace(/^##\s+/, ''))}</h2>`);
-      continue;
-    }
-    if (/^#\s+(.*$)/.test(line)) {
-      closeList();
-      htmlLines.push(`<h1>${formatInlineMarkdown(line.replace(/^#\s+/, ''))}</h1>`);
+      const level = headingMatch[1].length;
+      htmlLines.push(`<h${level}>${formatInlineMarkdown(headingMatch[2])}</h${level}>`);
       continue;
     }
 
@@ -176,7 +280,7 @@ export function markdownToHtml(md: string): string {
 
     closeList();
     if (/^<(p|div|blockquote|table|pre|hr|h[1-6]|ul|ol|li)[^>]*>/i.test(trimmed)) {
-      htmlLines.push(trimmed);
+      htmlLines.push(sanitizeHtmlBlock(trimmed));
     } else {
       htmlLines.push(`<p>${formatInlineMarkdown(trimmed)}</p>`);
     }

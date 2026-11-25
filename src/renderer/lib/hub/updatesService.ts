@@ -8,9 +8,27 @@ export interface ReleaseNote {
   downloadUrl?: string;
 }
 
-export const CURRENT_APP_VERSION = 'v0.1.0';
+const RAW_APP_VERSION =
+  typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__ ? __APP_VERSION__ : '0.1.0';
+
+export const CURRENT_APP_VERSION = RAW_APP_VERSION.startsWith('v')
+  ? RAW_APP_VERSION
+  : `v${RAW_APP_VERSION}`;
 
 export const INITIAL_RELEASE_HISTORY: ReleaseNote[] = [
+  {
+    version: 'v0.1.1',
+    title: 'Stability, Security & Quality-of-Life Update',
+    releaseDate: 'Nov 2026',
+    summary: 'Reliability, file-safety, and polish pass across Docs, PDF, Whiteboard, Fonts, and Hub.',
+    highlights: [
+      'Security & Safety: Stricter file path protection, Markdown sanitization, and guaranteed auto-save flush on window close.',
+      'Docs & Whiteboard: Fixed Word (.docx)/Markdown conversions, Find & Replace, Zoom shortcuts, and .tldr/.solstice drag-and-drop.',
+      'PDF & Fonts: Fixed PDF Unlock/Decrypt, highlight colors, persistent Remove from Recents, and cleaner font downloads & cleanup.',
+      'Hub & Settings: Unified dark-mode styling, Workspace folder & storage readout in Preferences, and direct OS installer links in Updates.',
+    ],
+    htmlUrl: 'https://github.com/kam1n4ri/Solstice/releases',
+  },
   {
     version: 'v0.1.0',
     title: 'Initial Desktop Suite',
@@ -30,27 +48,43 @@ export const INITIAL_RELEASE_HISTORY: ReleaseNote[] = [
 const STORAGE_KEY_SEEN = 'solstice-last-seen-update-version';
 const STORAGE_KEY_CACHE = 'solstice-cached-releases';
 
-export async function fetchGitHubReleases(): Promise<ReleaseNote[]> {
-  try {
-    const res = await fetch('https://api.github.com/repos/kam1n4ri/Solstice/releases', {
-      headers: { Accept: 'application/vnd.github.v3+json' },
-    });
-    if (!res.ok) {
-      return getCachedOrInitialReleases();
-    }
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      return getCachedOrInitialReleases();
-    }
+export interface UpdatesCheckResult {
+  releases: ReleaseNote[];
+  fromCache: boolean;
+  error?: string;
+}
 
-    const releases: ReleaseNote[] = data.map((item: {
-      tag_name?: string;
-      name?: string;
-      published_at?: string;
-      body?: string;
-      html_url?: string;
-    }) => {
-      const tag = item.tag_name || 'v0.1.0';
+export function selectPlatformDownloadUrl(assets: unknown): string | undefined {
+  if (!Array.isArray(assets) || assets.length === 0) return undefined;
+
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+  const preferredExts = ua.includes('win')
+    ? ['.exe', '.msi']
+    : ua.includes('mac')
+    ? ['.dmg']
+    : ['.appimage', '.deb', '.rpm'];
+
+  const validAssets = assets.filter(
+    (a: any): a is { name: string; browser_download_url: string } =>
+      a &&
+      typeof a.name === 'string' &&
+      typeof a.browser_download_url === 'string' &&
+      a.browser_download_url.startsWith('https://')
+  );
+
+  for (const ext of preferredExts) {
+    const match = validAssets.find((a) => a.name.toLowerCase().endsWith(ext));
+    if (match) return match.browser_download_url;
+  }
+
+  return undefined;
+}
+
+function parseReleaseNotes(data: unknown[]): ReleaseNote[] {
+  return data
+    .filter((item: any) => item && !item.draft)
+    .map((item: any): ReleaseNote => {
+      const tag = typeof item.tag_name === 'string' && item.tag_name ? item.tag_name : CURRENT_APP_VERSION;
       const cleanTag = tag.startsWith('v') ? tag : `v${tag}`;
       const title = item.name || `Release ${cleanTag}`;
       const published = item.published_at
@@ -61,21 +95,56 @@ export async function fetchGitHubReleases(): Promise<ReleaseNote[]> {
           })
         : 'Recent';
 
-      const bodyText = item.body || '';
-      const lines = bodyText.split('\n').map((l) => l.trim()).filter(Boolean);
+      const bodyText: string = typeof item.body === 'string' ? item.body : '';
+      const lines: string[] = bodyText
+        .split('\n')
+        .map((l: string) => l.trim())
+        .filter(Boolean);
       const highlights = lines
-        .filter((l) => l.startsWith('- ') || l.startsWith('* ') || l.startsWith('• '))
-        .map((l) => l.replace(/^[-*•]\s+/, ''));
+        .filter((l: string) => l.startsWith('- ') || l.startsWith('* ') || l.startsWith('• '))
+        .map((l: string) => l.replace(/^[-*•]\s+/, ''));
+      const summaryLine = lines.find(
+        (l: string) =>
+          !l.startsWith('- ') && !l.startsWith('* ') && !l.startsWith('• ') && !l.startsWith('#')
+      );
 
       return {
         version: cleanTag,
         title,
         releaseDate: published,
-        summary: lines[0] && !lines[0].startsWith('-') ? lines[0] : 'Feature and performance release.',
-        highlights: highlights.length > 0 ? highlights : [bodyText.slice(0, 160) || 'Routine maintenance and optimizations.'],
+        summary: summaryLine || 'Feature and performance release.',
+        highlights:
+          highlights.length > 0
+            ? highlights
+            : [bodyText.slice(0, 160) || 'Routine maintenance and optimizations.'],
         htmlUrl: item.html_url || 'https://github.com/kam1n4ri/Solstice/releases',
+        downloadUrl: selectPlatformDownloadUrl(item.assets),
       };
+    })
+    .sort((a, b) => compareVersions(b.version, a.version));
+}
+
+export async function checkForUpdates(): Promise<UpdatesCheckResult> {
+  try {
+    const res = await fetch('https://api.github.com/repos/kam1n4ri/Solstice/releases', {
+      headers: { Accept: 'application/vnd.github.v3+json' },
     });
+    if (!res.ok) {
+      return {
+        releases: getCachedOrInitialReleases(),
+        fromCache: true,
+        error: `GitHub returned HTTP ${res.status}`,
+      };
+    }
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return { releases: getCachedOrInitialReleases(), fromCache: true };
+    }
+
+    const releases = parseReleaseNotes(data);
+    if (releases.length === 0) {
+      return { releases: getCachedOrInitialReleases(), fromCache: true };
+    }
 
     try {
       localStorage.setItem(STORAGE_KEY_CACHE, JSON.stringify(releases));
@@ -83,10 +152,19 @@ export async function fetchGitHubReleases(): Promise<ReleaseNote[]> {
       // Storage unavailable
     }
 
-    return releases;
-  } catch {
-    return getCachedOrInitialReleases();
+    return { releases, fromCache: false };
+  } catch (err) {
+    return {
+      releases: getCachedOrInitialReleases(),
+      fromCache: true,
+      error: err instanceof Error ? err.message : 'Unable to reach update server',
+    };
   }
+}
+
+export async function fetchGitHubReleases(): Promise<ReleaseNote[]> {
+  const { releases } = await checkForUpdates();
+  return releases;
 }
 
 export function getCachedOrInitialReleases(): ReleaseNote[] {
@@ -124,16 +202,27 @@ export function markUpdateAsSeen(version: string): void {
 }
 
 export function compareVersions(v1: string, v2: string): number {
-  const parse = (v: string) =>
-    v
-      .replace(/^v/, '')
-      .split('.')
-      .map((num) => parseInt(num, 10) || 0);
+  const parse = (v: string) => {
+    const cleaned = v.replace(/^v/i, '');
+    const [core, pre = ''] = cleaned.split('-', 2);
+    const parts = core.split('.').map((num) => parseInt(num, 10) || 0);
+    return {
+      maj: parts[0] || 0,
+      min: parts[1] || 0,
+      pat: parts[2] || 0,
+      pre,
+    };
+  };
 
-  const [maj1, min1, pat1] = parse(v1);
-  const [maj2, min2, pat2] = parse(v2);
+  const a = parse(v1);
+  const b = parse(v2);
 
-  if (maj1 !== maj2) return maj1 - maj2;
-  if (min1 !== min2) return min1 - min2;
-  return pat1 - pat2;
+  if (a.maj !== b.maj) return a.maj - b.maj;
+  if (a.min !== b.min) return a.min - b.min;
+  if (a.pat !== b.pat) return a.pat - b.pat;
+
+  if (!a.pre && b.pre) return 1;
+  if (a.pre && !b.pre) return -1;
+  if (a.pre !== b.pre) return a.pre.localeCompare(b.pre);
+  return 0;
 }

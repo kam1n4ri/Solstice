@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { InstalledFont } from '@shared/types';
 
 const loadedHubFontKeys = new Set<string>();
@@ -7,6 +7,7 @@ export function useHubFonts() {
   const [installedFonts, setInstalledFonts] = useState<InstalledFont[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadFontFaces = useCallback(async (fonts: InstalledFont[]) => {
     const currentFontNames = new Set(fonts.map((f) => f.name.toLowerCase()));
@@ -26,24 +27,26 @@ export function useHubFonts() {
     for (const f of fonts) {
       const regKey = `${f.name.toLowerCase()}-400`;
       if (f.dataUrl && !loadedHubFontKeys.has(regKey)) {
+        loadedHubFontKeys.add(regKey);
         try {
           const face = new FontFace(f.name, `url(${f.dataUrl})`, { weight: '400', style: 'normal' });
           const loaded = await face.load();
           document.fonts.add(loaded);
-          loadedHubFontKeys.add(regKey);
         } catch (err) {
+          loadedHubFontKeys.delete(regKey);
           console.warn(`Could not register FontFace for ${f.name}:`, err);
         }
       }
 
       const boldKey = `${f.name.toLowerCase()}-700`;
       if (f.boldDataUrl && !loadedHubFontKeys.has(boldKey)) {
+        loadedHubFontKeys.add(boldKey);
         try {
           const boldFace = new FontFace(f.name, `url(${f.boldDataUrl})`, { weight: '700', style: 'normal' });
           const loadedBold = await boldFace.load();
           document.fonts.add(loadedBold);
-          loadedHubFontKeys.add(boldKey);
         } catch (err) {
+          loadedHubFontKeys.delete(boldKey);
           console.warn(`Could not register bold FontFace for ${f.name}:`, err);
         }
       }
@@ -65,23 +68,37 @@ export function useHubFonts() {
   useEffect(() => {
     refreshInstalledFonts();
 
+    let unsubscribe: (() => void) | undefined;
     if (window.solsticeAPI?.onFontsUpdated) {
-      const unsubscribe = window.solsticeAPI.onFontsUpdated((updatedList) => {
+      unsubscribe = window.solsticeAPI.onFontsUpdated((updatedList) => {
         setInstalledFonts(updatedList);
         loadFontFaces(updatedList);
       });
-      return unsubscribe;
     }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
+      }
+    };
   }, [refreshInstalledFonts, loadFontFaces]);
 
-  const showFeedback = (message: string, type: 'success' | 'error') => {
+  const showFeedback = useCallback((message: string, type: 'success' | 'error') => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
     setFeedback({ message, type });
-    setTimeout(() => setFeedback(null), 3500);
-  };
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedback(null);
+      feedbackTimerRef.current = null;
+    }, 3500);
+  }, []);
 
   const handleDownload = async (name: string, category: string) => {
     if (!window.solsticeAPI?.downloadGoogleFont) {
-      showFeedback('Font downloading requires desktop Electron mode.', 'error');
+      showFeedback('Font downloading requires desktop mode.', 'error');
       return;
     }
 
@@ -89,11 +106,6 @@ export function useHubFonts() {
       setDownloadingId(name);
       const res = await window.solsticeAPI.downloadGoogleFont({ name, category });
       if (res.success && res.font) {
-        if (res.font.dataUrl) {
-          const face = new FontFace(res.font.name, `url(${res.font.dataUrl})`);
-          await face.load();
-          document.fonts.add(face);
-        }
         showFeedback(`"${name}" successfully installed across the suite!`, 'success');
         await refreshInstalledFonts();
       } else {
@@ -108,18 +120,13 @@ export function useHubFonts() {
 
   const handleImportLocal = async () => {
     if (!window.solsticeAPI?.importLocalFont) {
-      showFeedback('Local font import requires desktop Electron mode.', 'error');
+      showFeedback('Local font import requires desktop mode.', 'error');
       return;
     }
 
     try {
       const res = await window.solsticeAPI.importLocalFont();
       if (res.success && res.font) {
-        if (res.font.dataUrl) {
-          const face = new FontFace(res.font.name, `url(${res.font.dataUrl})`);
-          await face.load();
-          document.fonts.add(face);
-        }
         showFeedback(`"${res.font.name}" successfully imported!`, 'success');
         await refreshInstalledFonts();
       } else if (!res.canceled && res.error) {
@@ -133,7 +140,11 @@ export function useHubFonts() {
   const handleDelete = async (fontId: string) => {
     if (!window.solsticeAPI?.deleteInstalledFont) return;
     try {
-      await window.solsticeAPI.deleteInstalledFont(fontId);
+      const res = await window.solsticeAPI.deleteInstalledFont(fontId);
+      if (res && !res.success) {
+        showFeedback(res.error || 'Deletion failed.', 'error');
+        return;
+      }
       showFeedback(`"${fontId}" removed from suite fonts.`, 'success');
       await refreshInstalledFonts();
     } catch (err: any) {

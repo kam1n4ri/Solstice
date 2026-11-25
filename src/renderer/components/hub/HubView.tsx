@@ -127,6 +127,24 @@ export const HubView: React.FC = () => {
     return 'Access and launch your suite of creative, productivity, and utility applications.';
   }, [searchQuery]);
 
+  const handleUpdateSeen = useCallback(() => {
+    setHasUnseenUpdate(false);
+  }, []);
+
+  const handleHeaderSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      setActiveView('apps');
+    }
+  }, []);
+
+  const handleSelectView = useCallback((view: 'apps' | 'files' | 'fonts' | 'updates') => {
+    setActiveView(view);
+    if (view !== 'apps') {
+      setSearchQuery('');
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-surface font-sans text-on-surface antialiased select-none">
       {/* Fixed Left Navigation Rail */}
@@ -138,7 +156,7 @@ export const HubView: React.FC = () => {
         }}
         activeCountsByCategory={activeCountsByCategory}
         activeView={activeView}
-        onSelectView={setActiveView}
+        onSelectView={handleSelectView}
         hasUnseenUpdate={hasUnseenUpdate}
       />
 
@@ -146,14 +164,14 @@ export const HubView: React.FC = () => {
       <div className="pl-64 flex flex-col min-h-screen">
         <HubHeader
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={handleHeaderSearchChange}
           activeCount={activeTools.length}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         <main className="w-full pt-14 bg-surface flex-1">
           {activeView === 'updates' ? (
-            <HubUpdatesView onUpdateSeen={() => setHasUnseenUpdate(false)} />
+            <HubUpdatesView onUpdateSeen={handleUpdateSeen} />
           ) : activeView === 'fonts' ? (
             <HubFontView />
           ) : activeView === 'files' ? (

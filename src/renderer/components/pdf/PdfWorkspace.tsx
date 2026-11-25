@@ -34,6 +34,7 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isOrganizeMode, setIsOrganizeMode] = useState<boolean>(false);
+  const [organizeData, setOrganizeData] = useState<Uint8Array | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(240);
 
   const ann = usePdfAnnotations();
@@ -118,6 +119,13 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
     onBackToHome();
   }, [flushAutoSave, onBackToHome]);
 
+  const handleOpenOrganize = useCallback(async () => {
+    await flushAutoSave();
+    const baked = await ann.exportDocumentWithAnnotations(document.data).catch(() => document.data);
+    setOrganizeData(baked);
+    setIsOrganizeMode(true);
+  }, [flushAutoSave, ann, document.data]);
+
   useEffect(() => {
     const unsub = window.solsticeAPI?.onSaveAndCloseRequested?.(async () => {
       await flushAutoSave();
@@ -128,7 +136,6 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
     return () => {
       unsub?.();
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      flushAutoSave();
     };
   }, [flushAutoSave]);
 
@@ -167,17 +174,25 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
           onRevealFolder={handleRevealFolder}
           onPrint={handlePrint}
           onExport={handleExport}
-          onBackToHome={() => setIsOrganizeMode(false)}
+          onBackToHome={() => {
+            setIsOrganizeMode(false);
+            setOrganizeData(null);
+          }}
         />
         <PdfOrganizeView
           initialFilePath={filePath}
           initialFileName={title.endsWith('.pdf') ? title : `${title}.pdf`}
-          initialData={document.data}
+          initialData={organizeData || document.data}
+          saveAsCopy={false}
           onSuccess={(newFilePath, newData, newFileName) => {
             setIsOrganizeMode(false);
+            setOrganizeData(null);
             onDocumentUpdate?.(newFilePath, newData, newFileName);
           }}
-          onCancel={() => setIsOrganizeMode(false)}
+          onCancel={() => {
+            setIsOrganizeMode(false);
+            setOrganizeData(null);
+          }}
         />
       </div>
     );
@@ -195,7 +210,7 @@ export const PdfWorkspace: React.FC<PdfWorkspaceProps> = ({
         onPrint={handlePrint}
         onExport={handleExport}
         onBackToHome={handleBackToHome}
-        onOpenOrganize={() => setIsOrganizeMode(true)}
+        onOpenOrganize={handleOpenOrganize}
         onOpenTool={onOpenTool}
       />
 

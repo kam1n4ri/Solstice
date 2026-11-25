@@ -1,9 +1,12 @@
 pub mod commands;
+pub mod workspace_commands;
+pub mod window_close;
 pub mod pdf_engine;
 pub mod pdf_commands;
 pub mod pdf_tool_commands;
 pub mod docs_types;
 pub mod docs_engine;
+pub mod docs_save;
 pub mod docs_commands;
 pub mod whiteboard_types;
 pub mod whiteboard_engine;
@@ -13,40 +16,30 @@ pub mod font_engine;
 pub mod font_commands;
 
 use commands::*;
+use workspace_commands::{get_solstice_storage_info, open_solstice_folder};
+use window_close::{cancel_close, close_window, handle_window_event, CloseHandshakeState};
 use pdf_commands::*;
 use pdf_tool_commands::*;
 use docs_commands::*;
 use whiteboard_commands::*;
 use font_commands::*;
-use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(CloseHandshakeState::default())
         .on_window_event(|window, event| {
-            match event {
-                tauri::WindowEvent::Destroyed | tauri::WindowEvent::CloseRequested { .. } => {
-                    let label = window.label();
-                    if let Some(tool_id) = label.strip_prefix("tool-") {
-                        let _ = window.app_handle().emit(
-                            "tool-window-state-changed",
-                            serde_json::json!({
-                                "toolId": tool_id,
-                                "isOpen": false,
-                                "isFocused": false
-                            }),
-                        );
-                    }
-                }
-                _ => {}
-            }
+            handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
             get_app_version,
+            get_solstice_storage_info,
+            open_solstice_folder,
             get_active_tools,
             open_tool_window,
             close_window,
+            cancel_close,
             minimize_window,
             maximize_window,
             get_recent_files,

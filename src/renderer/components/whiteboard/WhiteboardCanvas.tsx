@@ -1,9 +1,8 @@
-import React, { useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   Excalidraw,
   MainMenu,
   WelcomeScreen,
-  restore,
   getSceneVersion,
   THEME,
 } from '@excalidraw/excalidraw';
@@ -19,6 +18,7 @@ import './whiteboard.css';
 import './whiteboardLibrary.css';
 import { getWhiteboardTemplateElements } from './WhiteboardTemplatesData';
 import { useWhiteboardRebrand } from './useWhiteboardRebrand';
+import { parseWhiteboardSnapshot } from './whiteboardSnapshotParser';
 
 interface WhiteboardCanvasProps {
   title?: string;
@@ -43,24 +43,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = React.memo(({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Memoize initial restored data state for synchronous Excalidraw initialization
+  // Memoize initial restored data state for synchronous Excalidraw/tldr/solstice initialization
   const initialData = useMemo<ExcalidrawInitialDataState | null>(() => {
     if (initialSnapshot) {
-      try {
-        const parsed = JSON.parse(initialSnapshot);
-        const restored = restore(parsed, null, null);
-        return {
-          elements: restored.elements,
-          appState: {
-            ...restored.appState,
-            theme: THEME.LIGHT,
-          },
-          files: restored.files,
-          scrollToContent: true,
-        };
-      } catch (err) {
-        console.error('Failed to parse and load initial Excalidraw snapshot:', err);
-      }
+      return parseWhiteboardSnapshot(initialSnapshot);
     } else if (templateId) {
       try {
         const templateElements = getWhiteboardTemplateElements(templateId);
@@ -91,6 +77,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = React.memo(({
   }, [initialData]);
 
   const lastSceneVersionRef = useRef<number>(baselineVersion);
+  useEffect(() => {
+    lastSceneVersionRef.current = baselineVersion;
+  }, [baselineVersion]);
 
   const handleApi = useCallback(
     (api: ExcalidrawImperativeAPI) => {

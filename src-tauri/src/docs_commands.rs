@@ -6,10 +6,10 @@ use tauri::AppHandle;
 
 #[tauri::command]
 pub async fn docs_open_file(
-    _app: AppHandle,
+    app: AppHandle,
     file_path: Option<String>,
 ) -> Result<DocsOpenResult, String> {
-    let path = match file_path {
+    let source_path = match file_path {
         Some(p) => PathBuf::from(p),
         None => {
             let handle = rfd::AsyncFileDialog::new()
@@ -40,18 +40,34 @@ pub async fn docs_open_file(
         }
     };
 
-    if !path.exists() {
+    if !source_path.exists() {
         return Ok(DocsOpenResult {
             success: false,
             canceled: None,
             title: None,
             content: None,
-            file_path: Some(path.to_string_lossy().to_string()),
+            file_path: Some(source_path.to_string_lossy().to_string()),
             format: None,
             data: None,
             error: Some("File does not exist on disk".to_string()),
         });
     }
+
+    let path = match ensure_working_doc(&app, &source_path.to_string_lossy()) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(DocsOpenResult {
+                success: false,
+                canceled: None,
+                title: None,
+                content: None,
+                file_path: Some(source_path.to_string_lossy().to_string()),
+                format: None,
+                data: None,
+                error: Some(e),
+            });
+        }
+    };
 
     let ext = path
         .extension()
@@ -116,64 +132,10 @@ pub async fn docs_open_file(
 
 #[tauri::command]
 pub async fn docs_save_file(
-    _app: AppHandle,
+    app: AppHandle,
     payload: DocsSavePayload,
 ) -> Result<DocsSaveResult, String> {
-    let is_save_as = payload.is_save_as.unwrap_or(false);
-    let target_path = if is_save_as || payload.file_path.is_none() {
-        let clean_title = sanitize_doc_title(&payload.title);
-        let default_name = format!("{}.html", clean_title);
-
-        let handle = rfd::AsyncFileDialog::new()
-            .set_title("Save Document As")
-            .set_file_name(&default_name)
-            .add_filter("HTML Document", &["html", "htm"])
-            .add_filter("Markdown Document", &["md"])
-            .add_filter("Plain Text Document", &["txt"])
-            .save_file()
-            .await;
-
-        match handle {
-            Some(h) => h.path().to_path_buf(),
-            None => {
-                return Ok(DocsSaveResult {
-                    success: false,
-                    canceled: Some(true),
-                    file_path: None,
-                    title: None,
-                    error: None,
-                })
-            }
-        }
-    } else {
-        PathBuf::from(payload.file_path.unwrap())
-    };
-
-    if let Some(parent) = target_path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-
-    if let Some(data) = payload.data {
-        fs::write(&target_path, data)
-            .map_err(|e| format!("Failed to save file: {}", e))?;
-    } else {
-        fs::write(&target_path, &payload.content)
-            .map_err(|e| format!("Failed to save file: {}", e))?;
-    }
-
-    let file_title = target_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(&payload.title)
-        .to_string();
-
-    Ok(DocsSaveResult {
-        success: true,
-        canceled: None,
-        file_path: Some(target_path.to_string_lossy().to_string()),
-        title: Some(file_title),
-        error: None,
-    })
+    crate::docs_save::execute_docs_save(&app, payload).await
 }
 
 #[tauri::command]
@@ -186,6 +148,7 @@ pub async fn docs_auto_save(
         &app,
         &payload.title,
         &payload.content,
+        payload.data.as_deref(),
         payload.file_path.as_deref(),
         &draft_id,
     ) {
@@ -244,6 +207,8 @@ pub async fn docs_export_file(
     if let Some(data) = payload.data {
         fs::write(&path, data)
             .map_err(|e| format!("Failed to export document: {}", e))?;
+    } else if ext == "docx" {
+        return Err("Missing binary Word (.docx) payload for export".to_string());
     } else {
         let write_content = if ext == "md" || ext == "txt" {
             payload.content.as_bytes().to_vec()

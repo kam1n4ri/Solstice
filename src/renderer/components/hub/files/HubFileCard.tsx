@@ -92,9 +92,9 @@ export const HubFileCard: React.FC<HubFileCardProps> = ({
   const config = TOOL_CONFIG[file.tool] || {
     label: file.tool,
     icon: FileText,
-    bg: 'bg-stone-50',
-    text: 'text-stone-700',
-    border: 'border-stone-200/60',
+    bg: 'bg-surface-container/60',
+    text: 'text-on-surface-variant',
+    border: 'border-outline-variant/25',
   };
 
   const IconComp = config.icon;
@@ -108,7 +108,7 @@ export const HubFileCard: React.FC<HubFileCardProps> = ({
   return (
     <div
       onClick={() => onOpen(file.tool, file.filePath)}
-      className="group relative flex flex-col justify-between p-4 rounded-2xl bg-white border border-stone-200/70 hover:border-stone-300 hover:shadow-xs transition-all duration-150 cursor-pointer select-none"
+      className="group relative flex flex-col justify-between p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 hover:border-outline-variant/60 hover:shadow-xs transition-all duration-150 cursor-pointer select-none"
     >
       <div>
         {/* Top Badges & Tool Icon */}
@@ -128,7 +128,7 @@ export const HubFileCard: React.FC<HubFileCardProps> = ({
                 onReveal(file.filePath);
               }}
               title="Reveal in folder"
-              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
             >
               <FolderOpen className="w-3.5 h-3.5" />
             </button>
@@ -139,7 +139,7 @@ export const HubFileCard: React.FC<HubFileCardProps> = ({
                 onDelete(file.filePath);
               }}
               title="Delete file"
-              className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-outline hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/70 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -147,20 +147,20 @@ export const HubFileCard: React.FC<HubFileCardProps> = ({
         </div>
 
         {/* File Name */}
-        <h4 className="text-sm font-semibold text-stone-800 tracking-tight truncate group-hover:text-stone-900">
+        <h4 className="text-sm font-semibold text-on-surface tracking-tight truncate">
           {file.fileName}
         </h4>
 
         {/* Truncated File Path */}
-        <p className="text-[11px] text-stone-400 font-mono truncate mt-0.5" title={file.filePath}>
+        <p className="text-[11px] text-outline font-mono truncate mt-0.5" title={file.filePath}>
           {file.filePath}
         </p>
       </div>
 
       {/* Footer Info */}
-      <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
+      <div className="mt-4 pt-3 border-t border-surface-container/60 flex items-center justify-between text-[11px] text-on-surface-variant">
         <span>Modified {formattedDate}</span>
-        <span className="flex items-center gap-1 text-stone-400 group-hover:text-stone-600 transition-colors font-medium">
+        <span className="flex items-center gap-1 text-outline group-hover:text-on-surface transition-colors font-medium">
           <span>Open</span>
           <ExternalLink className="w-3 h-3" />
         </span>

@@ -1,9 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface UseDocsShortcutsOptions {
   onToggleFindReplace: () => void;
   onOpenFindReplace?: () => void;
   onToggleWordCount: () => void;
+  onOpenLinkModal?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onZoomReset?: () => void;
   onNew: () => void;
   onPrint: () => void;
   onSave: () => void;
@@ -12,50 +16,58 @@ interface UseDocsShortcutsOptions {
 }
 
 export function useDocsShortcuts(options: UseDocsShortcutsOptions): void {
-  const {
-    onToggleFindReplace,
-    onOpenFindReplace,
-    onToggleWordCount,
-    onNew,
-    onPrint,
-    onSave,
-    onSaveAs,
-    onOpen,
-  } = options;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isCtrl = e.ctrlKey || e.metaKey;
+      const isCtrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+      if (!isCtrl) return;
 
-      if (isCtrl && !e.shiftKey && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
+      const opts = optionsRef.current;
+      const key = e.key.toLowerCase();
+
+      if (!e.shiftKey && (key === 'f' || key === 'h')) {
         e.preventDefault();
-        if (onOpenFindReplace) {
-          onOpenFindReplace();
+        if (opts.onOpenFindReplace) {
+          opts.onOpenFindReplace();
         } else {
-          onToggleFindReplace();
+          opts.onToggleFindReplace();
         }
-      } else if (isCtrl && e.shiftKey && e.key.toLowerCase() === 'c') {
+      } else if (e.shiftKey && key === 'c') {
         e.preventDefault();
-        onToggleWordCount();
-      } else if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        opts.onToggleWordCount();
+      } else if (!e.shiftKey && key === 'k') {
         e.preventDefault();
-        onNew();
-      } else if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        opts.onOpenLinkModal?.();
+      } else if (e.key === '=' || e.key === '+' || e.code === 'NumpadAdd') {
         e.preventDefault();
-        onPrint();
-      } else if (isCtrl && e.shiftKey && e.key.toLowerCase() === 's') {
+        opts.onZoomIn?.();
+      } else if (!e.shiftKey && (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract')) {
         e.preventDefault();
-        onSaveAs?.();
-      } else if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 's') {
+        opts.onZoomOut?.();
+      } else if (!e.shiftKey && (e.key === '0' || e.code === 'Numpad0')) {
         e.preventDefault();
-        onSave();
-      } else if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'o') {
+        opts.onZoomReset?.();
+      } else if (!e.shiftKey && key === 'n') {
         e.preventDefault();
-        onOpen();
+        opts.onNew();
+      } else if (!e.shiftKey && key === 'p') {
+        e.preventDefault();
+        opts.onPrint();
+      } else if (e.shiftKey && key === 's') {
+        e.preventDefault();
+        opts.onSaveAs?.();
+      } else if (!e.shiftKey && key === 's') {
+        e.preventDefault();
+        opts.onSave();
+      } else if (!e.shiftKey && key === 'o') {
+        e.preventDefault();
+        opts.onOpen();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onToggleFindReplace, onToggleWordCount, onNew, onPrint, onSave, onSaveAs, onOpen]);
+  }, []);
 }

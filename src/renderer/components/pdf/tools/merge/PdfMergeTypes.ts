@@ -4,6 +4,7 @@ export interface MergeFileItem {
   fileName: string;
   fileSize: number;
   pageCount?: number;
+  fileData?: Uint8Array;
 }
 
 export interface MergeResultData {

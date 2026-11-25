@@ -35,7 +35,8 @@ export function useDocsFileOps({
   const isDraftRef = useRef<boolean>(!currentFilePath);
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
-  const pendingSaveRef = useRef(false);
+  const editVersionRef = useRef(0);
+  const inFlightSaveRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     titleRef.current = title;
@@ -43,6 +44,9 @@ export function useDocsFileOps({
 
   useEffect(() => {
     currentFilePathRef.current = currentFilePath;
+    if (currentFilePath) {
+      isDraftRef.current = false;
+    }
   }, [currentFilePath]);
 
   const flushAutoSave = useCallback(
@@ -51,50 +55,68 @@ export function useDocsFileOps({
         clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;
       }
-      if (!editor || (!isDirtyRef.current && !force)) return false;
-      if (isSavingRef.current) {
-        pendingSaveRef.current = true;
-        return false;
+      if (!editor) return false;
+
+      while (inFlightSaveRef.current) {
+        await inFlightSaveRef.current;
       }
+      if (!isDirtyRef.current && !force) return true;
 
-      isSavingRef.current = true;
-      flashStatus('Saving...');
-      try {
-        const res = await performAutoSave({
-          editor,
-          title: titleRef.current || 'Untitled document',
-          activePath: currentFilePathRef.current,
-          draftId: draftIdRef.current,
-        });
+      let shouldRetry = false;
+      const savePromise = (async (): Promise<boolean> => {
+        isSavingRef.current = true;
+        const versionAtStart = editVersionRef.current;
+        flashStatus('Saving...');
+        try {
+          const res = await performAutoSave({
+            editor,
+            title: titleRef.current || 'Untitled document',
+            activePath: currentFilePathRef.current,
+            draftId: draftIdRef.current,
+          });
 
-        if (res.success) {
-          if (res.filePath && res.filePath !== currentFilePathRef.current) {
-            currentFilePathRef.current = res.filePath;
-            setCurrentFilePath(res.filePath);
+          if (res.success) {
+            if (res.filePath) {
+              isDraftRef.current = false;
+              if (res.filePath !== currentFilePathRef.current) {
+                currentFilePathRef.current = res.filePath;
+                setCurrentFilePath(res.filePath);
+              }
+            }
+            if (editVersionRef.current === versionAtStart) {
+              isDirtyRef.current = false;
+              setIsDirty(false);
+              flashStatus('All changes saved');
+            } else {
+              shouldRetry = true;
+            }
+            return true;
           }
-          isDirtyRef.current = false;
-          setIsDirty(false);
-          flashStatus('All changes saved');
-          return true;
+          flashStatus('Save error');
+          return false;
+        } catch (err) {
+          console.error('Auto-save exception:', err);
+          flashStatus('Save error');
+          return false;
+        } finally {
+          isSavingRef.current = false;
+          inFlightSaveRef.current = null;
         }
-        flashStatus('Save error');
-        return false;
-      } catch (err) {
-        console.error('Auto-save exception:', err);
-        flashStatus('Save error');
-        return false;
-      } finally {
-        isSavingRef.current = false;
-        if (pendingSaveRef.current) {
-          pendingSaveRef.current = false;
-          flushAutoSave(true);
-        }
+      })();
+
+      inFlightSaveRef.current = savePromise;
+      const result = await savePromise;
+
+      if (shouldRetry && force) {
+        return await flushAutoSave(false);
       }
+      return result;
     },
     [editor, setCurrentFilePath, setIsDirty, flashStatus]
   );
 
   const scheduleAutoSave = useCallback(() => {
+    editVersionRef.current += 1;
     isDirtyRef.current = true;
     setIsDirty(true);
     flashStatus('Saving...');
@@ -107,10 +129,11 @@ export function useDocsFileOps({
   }, []);
 
   const handleSaveDocument = useCallback(
-    async (forceSaveAs = false): Promise<boolean> => {
+    async (forceSaveAs: boolean | unknown = false): Promise<boolean> => {
       if (!editor) return false;
       flashStatus('Saving...');
-      const isSaveAs = forceSaveAs || isDraftRef.current || !currentFilePathRef.current;
+      const saveAsRequested = forceSaveAs === true;
+      const isSaveAs = saveAsRequested || isDraftRef.current || !currentFilePathRef.current;
       const res = await performSaveDocument({
         editor,
         title: titleRef.current || 'Untitled document',
@@ -118,7 +141,10 @@ export function useDocsFileOps({
         isSaveAs,
       });
 
-      if (res.canceled) return false;
+      if (res.canceled) {
+        flashStatus(isDirtyRef.current ? 'Unsaved changes' : 'All changes saved');
+        return false;
+      }
       if (res.success && res.filePath) {
         currentFilePathRef.current = res.filePath;
         setCurrentFilePath(res.filePath);
@@ -143,25 +169,16 @@ export function useDocsFileOps({
   }, [handleSaveDocument]);
 
   const promptUnsavedGuard = useCallback(async (): Promise<boolean> => {
-    if (!isDirtyRef.current) return true;
-    if (window.solsticeAPI?.docsConfirmUnsaved) {
-      const choice = await window.solsticeAPI.docsConfirmUnsaved();
-      if (choice === 'cancel') return false;
-      if (choice === 'save') {
-        return await handleSaveDocument(false);
-      }
-      isDirtyRef.current = false;
-      setIsDirty(false);
-      return true;
-    }
-    await flushAutoSave(true);
+    if (!isDirtyRef.current && !isSavingRef.current) return true;
+    await flushAutoSave(isDirtyRef.current);
     return true;
-  }, [handleSaveDocument, flushAutoSave, setIsDirty]);
+  }, [flushAutoSave]);
 
   const handleTitleChange = useCallback(
     async (newTitle: string) => {
       const trimmed = newTitle.trim() || 'Untitled document';
       if (trimmed === titleRef.current) return;
+      editVersionRef.current += 1;
       titleRef.current = trimmed;
       setTitle(trimmed);
       isDirtyRef.current = true;

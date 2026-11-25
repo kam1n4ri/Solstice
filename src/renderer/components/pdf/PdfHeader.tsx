@@ -87,9 +87,23 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
         </button>
 
         {/* Saving Status Indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 ml-1 shrink-0">
-          <CloudCheck className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-[11px] font-sans text-slate-500">{statusText}</span>
+        <div className="flex items-center gap-1.5 text-xs ml-1 shrink-0">
+          <CloudCheck
+            className={`h-3.5 w-3.5 ${
+              statusText.toLowerCase().includes('error') || statusText.toLowerCase().includes('failed')
+                ? 'text-rose-500/80'
+                : 'text-slate-400'
+            }`}
+          />
+          <span
+            className={`text-[11px] font-sans ${
+              statusText.toLowerCase().includes('error') || statusText.toLowerCase().includes('failed')
+                ? 'text-rose-600/90 font-medium'
+                : 'text-slate-500'
+            }`}
+          >
+            {statusText}
+          </span>
         </div>
       </div>
 

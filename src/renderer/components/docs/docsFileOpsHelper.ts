@@ -1,6 +1,11 @@
 import { Editor } from '@tiptap/react';
 import { DocsSavePayload } from '@shared/types';
-import { markdownToHtml, plainTextToHtml } from '@shared/formatConverter';
+import {
+  htmlToMarkdown,
+  htmlToPlainText,
+  markdownToHtml,
+  plainTextToHtml,
+} from '@shared/formatConverter';
 import {
   removeRecentDoc,
   recordRecentDocFromEditor,
@@ -9,6 +14,24 @@ import {
 export function resolveSaveFormat(activePath: string | null): DocsSavePayload['format'] {
   const ext = activePath ? activePath.split('.').pop()?.toLowerCase() : 'html';
   return ext === 'docx' || ext === 'md' || ext === 'txt' ? ext : 'html';
+}
+
+async function serializeForFormat(
+  html: string,
+  format: DocsSavePayload['format']
+): Promise<{ content: string; data?: number[] }> {
+  if (format === 'docx') {
+    const { createDocxFromHtml } = await import('@shared/docx/docxConverter');
+    const bytes = await createDocxFromHtml(html);
+    return { content: '', data: Array.from(bytes) };
+  }
+  if (format === 'md') {
+    return { content: htmlToMarkdown(html) };
+  }
+  if (format === 'txt') {
+    return { content: htmlToPlainText(html) };
+  }
+  return { content: html };
 }
 
 export function readFallbackFileInput(
@@ -69,11 +92,15 @@ export async function performAutoSave(params: {
     return { success: true };
   }
 
+  const targetFormat = resolveSaveFormat(activePath);
+  const { content, data } = await serializeForFormat(editor.getHTML(), targetFormat);
+
   const res = await window.solsticeAPI.docsAutoSave({
     filePath: activePath,
     draftId,
     title,
-    content: editor.getHTML(),
+    content,
+    data,
   });
 
   if (res.success && res.filePath) {
@@ -98,24 +125,37 @@ export async function performSaveDocument(params: {
   }
 
   const cleanFormat = resolveSaveFormat(activePath);
-  let docxData: number[] | undefined;
-  if (cleanFormat === 'docx') {
+  const html = editor.getHTML();
+
+  let content = html;
+  let mdContent: string | undefined;
+  let txtContent: string | undefined;
+  let data: number[] | undefined;
+
+  if (isSaveAs || !activePath) {
+    mdContent = htmlToMarkdown(html);
+    txtContent = htmlToPlainText(html);
     try {
       const { createDocxFromHtml } = await import('@shared/docx/docxConverter');
-      const bytes = await createDocxFromHtml(editor.getHTML());
-      docxData = Array.from(bytes);
+      data = Array.from(await createDocxFromHtml(html));
     } catch (err) {
-      console.error('Failed to convert docx:', err);
+      console.error('Failed to pre-serialize docx for Save As:', err);
     }
+  } else {
+    const serialized = await serializeForFormat(html, cleanFormat);
+    content = serialized.content;
+    data = serialized.data;
   }
 
   const res = await window.solsticeAPI.docsSaveFile({
     filePath: isSaveAs ? undefined : activePath || undefined,
     title,
-    content: editor.getHTML(),
+    content,
+    mdContent,
+    txtContent,
     format: cleanFormat,
     isSaveAs,
-    data: docxData,
+    data,
   });
 
   if (res.canceled) return { success: false, canceled: true };

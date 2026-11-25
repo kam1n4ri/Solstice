@@ -22,6 +22,7 @@ export const DocsOutlineSidebar: React.FC<DocsOutlineSidebarProps> = ({
   onClose,
 }) => {
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
+  const [activePos, setActivePos] = useState<number | null>(null);
 
   useEffect(() => {
     if (!editor) return;
@@ -53,8 +54,6 @@ export const DocsOutlineSidebar: React.FC<DocsOutlineSidebarProps> = ({
   }, [editor]);
 
   if (!isOpen) return null;
-
-  const [activePos, setActivePos] = useState<number | null>(null);
 
   const handleHeadingClick = (pos: number) => {
     if (!editor) return;

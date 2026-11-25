@@ -29,13 +29,10 @@ export function useWhiteboardFileOps({
   const currentFilePathRef = useRef<string | null>(initialFilePath);
   const draftIdRef = useRef<string>(boardId || `board_${Date.now()}`);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isSavingRef = useRef(false);
+  const statusTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inFlightSaveRef = useRef<Promise<boolean> | null>(null);
+  const editVersionRef = useRef(0);
   const isDirtyRef = useRef(false);
-
-  const setTitle = useCallback((newTitle: string) => {
-    titleRef.current = newTitle;
-    setTitleState(newTitle);
-  }, []);
 
   const setCurrentFilePath = useCallback((newPath: string | null) => {
     currentFilePathRef.current = newPath;
@@ -43,9 +40,16 @@ export function useWhiteboardFileOps({
   }, []);
 
   const flashStatus = useCallback((msg: string) => {
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
     setStatusText(msg);
     if (msg !== 'Saving...') {
-      setTimeout(() => setStatusText('All changes saved'), 2400);
+      statusTimerRef.current = setTimeout(() => {
+        statusTimerRef.current = null;
+        setStatusText(isDirtyRef.current ? 'Unsaved changes' : 'All changes saved');
+      }, 2400);
     }
   }, []);
 
@@ -70,63 +74,77 @@ export function useWhiteboardFileOps({
     }
   }, [excalidrawApiRef, latestSceneRef]);
 
-  // Execute background auto-save to disk quietly
+  // Execute background auto-save to disk sequentially without dropping concurrent edits
   const flushAutoSave = useCallback(async (force = false): Promise<boolean> => {
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
 
-    if (!isDirtyRef.current && !force) return false;
-    if (isSavingRef.current) return false;
+    while (inFlightSaveRef.current) {
+      await inFlightSaveRef.current;
+    }
 
+    if (!isDirtyRef.current && !force) return true;
     const content = getSerializedSnapshot();
-    if (!content) return false;
+    const autoSaveFn = window.solsticeAPI?.whiteboardAutoSave;
+    if (!content || !autoSaveFn) return false;
 
-    if (!window.solsticeAPI?.whiteboardAutoSave) return false;
-
-    try {
-      isSavingRef.current = true;
+    let shouldRetry = false;
+    const savePromise = (async (): Promise<boolean> => {
+      const versionAtStart = editVersionRef.current;
       setStatusText('Saving...');
 
-      const activeTitle = titleRef.current;
-      const activePath = currentFilePathRef.current;
-
-      const res = await window.solsticeAPI.whiteboardAutoSave({
-        filePath: activePath,
-        title: activeTitle,
-        content,
-        draftId: draftIdRef.current,
-      });
-
-      if (res.success) {
-        if (res.filePath && res.filePath !== currentFilePathRef.current) {
-          setCurrentFilePath(res.filePath);
-        }
-        isDirtyRef.current = false;
-        setIsDirty(false);
-        saveRecentWhiteboard({
-          id: res.filePath || draftIdRef.current,
-          title: activeTitle || DEFAULT_WHITEBOARD_TITLE,
-          filePath: res.filePath || activePath,
-          lastModified: Date.now(),
+      try {
+        const activeTitle = titleRef.current;
+        const activePath = currentFilePathRef.current;
+        const res = await autoSaveFn({
+          filePath: activePath,
+          title: activeTitle,
+          content,
+          draftId: draftIdRef.current,
         });
-        setStatusText('All changes saved');
-        return true;
+
+        if (res.success) {
+          if (res.filePath && res.filePath !== currentFilePathRef.current) {
+            setCurrentFilePath(res.filePath);
+          }
+          saveRecentWhiteboard({
+            id: res.filePath || draftIdRef.current,
+            title: activeTitle || DEFAULT_WHITEBOARD_TITLE,
+            filePath: res.filePath || activePath,
+            lastModified: Date.now(),
+          });
+          if (editVersionRef.current === versionAtStart) {
+            isDirtyRef.current = false;
+            setIsDirty(false);
+            setStatusText('All changes saved');
+          } else {
+            shouldRetry = true;
+          }
+          return true;
+        }
+        setStatusText('Save failed');
+        return false;
+      } catch (err) {
+        console.error('Auto-save error:', err);
+        setStatusText('Save failed');
+        return false;
+      } finally {
+        inFlightSaveRef.current = null;
       }
-      setStatusText('Save failed');
-      return false;
-    } catch (err) {
-      console.error('Auto-save error:', err);
-      setStatusText('Save failed');
-      return false;
-    } finally {
-      isSavingRef.current = false;
+    })();
+
+    inFlightSaveRef.current = savePromise;
+    const ok = await savePromise;
+    if (shouldRetry && force) {
+      return await flushAutoSave(false);
     }
+    return ok;
   }, [getSerializedSnapshot, setCurrentFilePath]);
 
-  // Debounced auto-save schedule (1000ms after user pauses drawing)
   const scheduleAutoSave = useCallback(() => {
+    editVersionRef.current += 1;
     isDirtyRef.current = true;
     setIsDirty(true);
     setStatusText('Unsaved changes');
@@ -139,31 +157,10 @@ export function useWhiteboardFileOps({
     }, 1000);
   }, [flushAutoSave]);
 
-  // Safe window close flush handshake
-  useEffect(() => {
-    if (window.solsticeAPI?.onSaveAndCloseRequested) {
-      const unsub = window.solsticeAPI.onSaveAndCloseRequested(async () => {
-        if (isDirtyRef.current) {
-          await flushAutoSave(true);
-        }
-        window.solsticeAPI?.closeWindow?.(true);
-      });
-      return unsub;
-    }
-  }, [flushAutoSave]);
-
-  // Before unload flush (only if unsaved dirty changes exist)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isDirtyRef.current) {
-        flushAutoSave(true);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [flushAutoSave]);
+  const setTitle = useCallback((newTitle: string) => {
+    titleRef.current = newTitle;
+    setTitleState(newTitle);
+  }, []);
 
   // Manual Save As Dialog
   const handleSaveAs = useCallback(async () => {
@@ -180,7 +177,10 @@ export function useWhiteboardFileOps({
 
       if (res.success && res.filePath) {
         setCurrentFilePath(res.filePath);
-        if (res.title) setTitle(res.title);
+        if (res.title) {
+          titleRef.current = res.title;
+          setTitleState(res.title);
+        }
         isDirtyRef.current = false;
         setIsDirty(false);
         saveRecentWhiteboard({
@@ -199,23 +199,52 @@ export function useWhiteboardFileOps({
       console.error('Save error:', err);
       flashStatus('Save failed');
     }
-  }, [getSerializedSnapshot, setCurrentFilePath, setTitle, flashStatus]);
+  }, [getSerializedSnapshot, setCurrentFilePath, flashStatus]);
 
-  // Keyboard shortcuts (Ctrl+S, Ctrl+Shift+S)
+  const flushAutoSaveRef = useRef(flushAutoSave);
+  flushAutoSaveRef.current = flushAutoSave;
+  const handleSaveAsRef = useRef(handleSaveAs);
+  handleSaveAsRef.current = handleSaveAs;
+
+  // Single mount-bound listeners (prevents duplicate listeners and effect-cleanup double-saves)
   useEffect(() => {
+    const unsubClose = window.solsticeAPI?.onSaveAndCloseRequested?.(async () => {
+      if (isDirtyRef.current) {
+        await flushAutoSaveRef.current(true);
+      }
+      window.solsticeAPI?.closeWindow?.(true);
+    });
+
+    const handleBeforeUnload = () => {
+      if (isDirtyRef.current) {
+        flushAutoSaveRef.current(true);
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (e.shiftKey) {
-          handleSaveAs();
+          handleSaveAsRef.current();
         } else {
-          flushAutoSave(true);
+          flushAutoSaveRef.current(true);
         }
       }
     };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [flushAutoSave, handleSaveAs]);
+    return () => {
+      unsubClose?.();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+      if (isDirtyRef.current) {
+        flushAutoSaveRef.current(true);
+      }
+    };
+  }, []);
 
   // Export as PNG, SVG, or JSON
   const handleExport = useCallback(

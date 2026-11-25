@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Stamp, FolderOpen } from 'lucide-react';
 import { ActivePdfDocument } from '../PdfContainer';
 import { pdfjsLib, PDFDocumentProxy } from '../pdfjsSetup';
@@ -8,6 +8,7 @@ import { PdfWatermarkPreview } from './watermark/PdfWatermarkPreview';
 import { PdfWatermarkInspector } from './watermark/PdfWatermarkInspector';
 import { PdfWatermarkResultView } from './watermark/PdfWatermarkResultView';
 import { PdfWatermarkFooter } from './watermark/PdfWatermarkFooter';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 interface PdfWatermarkToolProps {
   onClose: () => void;
@@ -88,10 +89,14 @@ export const PdfWatermarkTool: React.FC<PdfWatermarkToolProps> = ({
 
   const handleDropFile = async (droppedFile: File) => {
     try {
+      if (!droppedFile.name.toLowerCase().endsWith('.pdf')) {
+        setError('Please drop a valid PDF file.');
+        return;
+      }
       const buffer = await droppedFile.arrayBuffer();
       const droppedPath = 'path' in droppedFile && typeof droppedFile.path === 'string'
         ? droppedFile.path
-        : droppedFile.name;
+        : null;
       setFilePath(droppedPath);
       setFileName(droppedFile.name);
       setOutputName(`Watermarked_${droppedFile.name}`);
@@ -102,6 +107,26 @@ export const PdfWatermarkTool: React.FC<PdfWatermarkToolProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load dropped file');
     }
   };
+
+  const handleDropPaths = useCallback(async (paths: string[]) => {
+    const pdfPath = paths.find((p) => p.toLowerCase().endsWith('.pdf'));
+    if (!pdfPath || !window.solsticeAPI?.pdfReadFile) return;
+    const readRes = await window.solsticeAPI.pdfReadFile(pdfPath).catch(() => null);
+    if (readRes?.success && readRes.data) {
+      const name = pdfPath.split(/[/\\]/).pop() || 'Document.pdf';
+      setFilePath(pdfPath);
+      setFileName(name);
+      setOutputName(`Watermarked_${name}`);
+      setFileData(new Uint8Array(readRes.data));
+      setResult(null);
+      setError(null);
+    }
+  }, []);
+
+  useTauriFileDrop({
+    enabled: !fileData && !result,
+    onDropPaths: handleDropPaths,
+  });
 
   const handleApplyWatermark = async () => {
     if (!fileData) {
@@ -127,6 +152,7 @@ export const PdfWatermarkTool: React.FC<PdfWatermarkToolProps> = ({
         rotation: options.rotation,
         colorHex: options.colorHex,
         imagePath: options.imagePath,
+        imageData: !options.imagePath && options.imageData ? Array.from(options.imageData) : undefined,
         imageScale: options.imageScale,
         xPercent: options.xPercent,
         yPercent: options.yPercent,

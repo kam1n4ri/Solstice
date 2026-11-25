@@ -44,6 +44,10 @@ export async function exportDocument(
       binaryData = Array.from(bytes);
     } catch (err) {
       console.error('Failed to generate docx:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to generate Word (.docx) document.',
+      };
     }
   }
 

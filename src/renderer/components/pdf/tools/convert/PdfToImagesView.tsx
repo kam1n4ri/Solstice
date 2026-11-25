@@ -35,13 +35,20 @@ export const PdfToImagesView: React.FC<PdfToImagesViewProps> = ({
       return;
     }
     let isCancelled = false;
+    let loadedPdf: any = null;
     pdfjsLib.getDocument({ data: fileData.slice() }).promise.then((pdf) => {
-      if (!isCancelled) setTotalPages(pdf.numPages);
+      if (isCancelled) {
+        pdf.destroy().catch(() => {});
+        return;
+      }
+      loadedPdf = pdf;
+      setTotalPages(pdf.numPages);
     }).catch(() => {
       if (!isCancelled) setTotalPages(0);
     });
     return () => {
       isCancelled = true;
+      loadedPdf?.destroy?.().catch(() => {});
     };
   }, [fileData]);
 
@@ -77,33 +84,42 @@ export const PdfToImagesView: React.FC<PdfToImagesViewProps> = ({
 
     try {
       const pdf = await pdfjsLib.getDocument({ data: fileData.slice() }).promise;
-      const total = pdf.numPages;
-      const results: RenderedPageImage[] = [];
-      const baseName = fileName.replace(/\.pdf$/i, '');
+      try {
+        const total = pdf.numPages;
+        const results: RenderedPageImage[] = [];
+        const baseName = fileName.replace(/\.pdf$/i, '');
 
-      for (let i = 1; i <= total; i++) {
-        setProgressMsg(`Rendering page ${i} of ${total} (${Math.round((i / total) * 100)}%)...`);
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: scaleFactor });
+        for (let i = 1; i <= total; i++) {
+          setProgressMsg(`Rendering page ${i} of ${total} (${Math.round((i / total) * 100)}%)...`);
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: scaleFactor });
 
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-          const ext = format === 'jpeg' ? 'jpg' : 'png';
-          const dataUrl = canvas.toDataURL(mimeType, 0.95);
-          results.push({
-            pageNumber: i,
-            dataUrl,
-            fileName: `${baseName}_page_${i}.${ext}`,
-          });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          const ctx = canvas.getContext('2d', { alpha: format !== 'jpeg' });
+          if (ctx) {
+            if (format === 'jpeg') {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const ext = format === 'jpeg' ? 'jpg' : 'png';
+            const dataUrl = canvas.toDataURL(mimeType, 0.95);
+            results.push({
+              pageNumber: i,
+              dataUrl,
+              fileName: `${baseName}_page_${i}.${ext}`,
+            });
+          }
+          page.cleanup();
         }
-      }
 
-      setRenderedImages(results);
+        setRenderedImages(results);
+      } finally {
+        pdf.destroy().catch(() => {});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to convert PDF pages to images.');
     } finally {

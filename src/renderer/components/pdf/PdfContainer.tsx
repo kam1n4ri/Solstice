@@ -13,6 +13,7 @@ export interface ActivePdfDocument {
   filePath: string | null;
   data: Uint8Array;
   fileName: string;
+  sessionId?: string;
 }
 
 export type ActivePdfTool =
@@ -29,6 +30,18 @@ export const PdfContainer: React.FC = () => {
   const [currentDocument, setCurrentDocument] = useState<ActivePdfDocument | null>(null);
   const [activeTool, setActiveTool] = useState<ActivePdfTool>(null);
 
+  const handleDocumentSelected = useCallback(
+    (filePath: string | null, data: Uint8Array, fileName: string) => {
+      setCurrentDocument({
+        filePath,
+        data,
+        fileName,
+        sessionId: `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      });
+    },
+    []
+  );
+
   // Check URL query parameters for initial file path (?filePath=... or ?path=... or ?file=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -36,15 +49,15 @@ export const PdfContainer: React.FC = () => {
     if (initialPath && window.solsticeAPI?.pdfOpenFile) {
       window.solsticeAPI.pdfOpenFile(initialPath).then((res) => {
         if (res.success && res.data && res.filePath) {
-          setCurrentDocument({
-            filePath: res.filePath,
-            data: new Uint8Array(res.data),
-            fileName: res.fileName || 'Untitled.pdf',
-          });
+          handleDocumentSelected(
+            res.filePath,
+            new Uint8Array(res.data),
+            res.fileName || 'Untitled.pdf'
+          );
         }
       });
     }
-  }, []);
+  }, [handleDocumentSelected]);
 
   // Listen for file open requests from Electron Main process
   useEffect(() => {
@@ -53,11 +66,11 @@ export const PdfContainer: React.FC = () => {
       if (filePath && window.solsticeAPI?.pdfOpenFile) {
         window.solsticeAPI.pdfOpenFile(filePath).then((res) => {
           if (res.success && res.data && res.filePath) {
-            setCurrentDocument({
-              filePath: res.filePath,
-              data: new Uint8Array(res.data),
-              fileName: res.fileName || 'Untitled.pdf',
-            });
+            handleDocumentSelected(
+              res.filePath,
+              new Uint8Array(res.data),
+              res.fileName || 'Untitled.pdf'
+            );
           }
         });
       }
@@ -66,18 +79,19 @@ export const PdfContainer: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, []);
-
-  const handleDocumentSelected = useCallback(
-    (filePath: string | null, data: Uint8Array, fileName: string) => {
-      setCurrentDocument({ filePath, data, fileName });
-    },
-    []
-  );
+  }, [handleDocumentSelected]);
 
   const handleBackToHome = useCallback(() => {
     setCurrentDocument(null);
   }, []);
+
+  useEffect(() => {
+    if (!currentDocument && window.solsticeAPI?.onSaveAndCloseRequested) {
+      return window.solsticeAPI.onSaveAndCloseRequested(() => {
+        window.solsticeAPI?.closeWindow?.(true);
+      });
+    }
+  }, [currentDocument]);
 
   const handleOpenTool = useCallback((toolId: string) => {
     setActiveTool(toolId as ActivePdfTool);
@@ -90,9 +104,11 @@ export const PdfContainer: React.FC = () => {
         <PdfHomeView
           onDocumentSelected={handleDocumentSelected}
           onOpenTool={handleOpenTool}
+          disableFileDrop={Boolean(activeTool)}
         />
       ) : (
         <PdfWorkspace
+          key={currentDocument.sessionId || currentDocument.filePath || currentDocument.fileName}
           document={currentDocument}
           onBackToHome={handleBackToHome}
           onOpenTool={handleOpenTool}

@@ -1,5 +1,5 @@
-import { PDFDocument } from 'pdf-lib';
 import { encryptPDF } from '@pdfsmaller/pdf-encrypt';
+import { decryptPdf } from '@shared/pdf/decryptPdf';
 import {
   PdfProtectPayload,
   PdfProtectResult,
@@ -66,12 +66,7 @@ export async function executePdfUnlock(payload: PdfUnlockPayload): Promise<PdfUn
       return { success: false, error: 'No source PDF document provided.' };
     }
 
-    const loadedDoc = await PDFDocument.load(srcBytes, { ignoreEncryption: true });
-    const cleanDoc = await PDFDocument.create();
-    const copiedPages = await cleanDoc.copyPages(loadedDoc, loadedDoc.getPageIndices());
-    copiedPages.forEach((page) => cleanDoc.addPage(page));
-
-    const cleanBytes = await cleanDoc.save();
+    const { bytes: cleanBytes } = await decryptPdf(srcBytes, payload.password || '');
     const defaultName = payload.defaultName || `Unlocked_${Date.now()}.pdf`;
 
     const saveRes = await invoke<any>('pdf_save_file', {
@@ -89,6 +84,7 @@ export async function executePdfUnlock(payload: PdfUnlockPayload): Promise<PdfUn
       success: true,
       filePath: saveRes.filePath,
       fileName: saveRes.fileName || defaultName,
+      data: Array.from(cleanBytes),
     };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to unlock document.' };

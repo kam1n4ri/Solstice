@@ -123,6 +123,10 @@ export interface SolsticeAPI {
   // External browser navigation
   openExternalUrl?: (url: string) => Promise<boolean>;
 
+  // Workspace storage info & folder shortcut
+  getStorageInfo?: () => Promise<{ rootPath: string; totalBytes: number; fileCount: number }>;
+  openSolsticeFolder?: () => Promise<boolean>;
+
   // Suite-Wide Font Asset Management
   getInstalledFonts?: () => Promise<InstalledFont[]>;
   downloadGoogleFont?: (payload: {

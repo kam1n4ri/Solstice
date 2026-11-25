@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ArrowLeft, FolderOpen, Grid, AlertCircle } from 'lucide-react';
 import { ActivePdfDocument } from '../PdfContainer';
 import { PdfOrganizeView } from '../organize/PdfOrganizeView';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 interface PdfOrganizeToolProps {
   onClose: () => void;
@@ -60,6 +61,24 @@ export const PdfOrganizeTool: React.FC<PdfOrganizeToolProps> = ({
       }
     }
   };
+
+  const handleDropPaths = useCallback(async (paths: string[]) => {
+    const pdfPath = paths.find((p) => p.toLowerCase().endsWith('.pdf'));
+    if (!pdfPath || !window.solsticeAPI?.pdfReadFile) return;
+    const readRes = await window.solsticeAPI.pdfReadFile(pdfPath).catch(() => null);
+    if (readRes?.success && readRes.data) {
+      setFilePath(pdfPath);
+      setFileName(pdfPath.split(/[/\\]/).pop() || 'Document.pdf');
+      setFileData(new Uint8Array(readRes.data));
+      setError(null);
+    }
+  }, []);
+
+  useTauriFileDrop({
+    enabled: !fileData,
+    onDropPaths: handleDropPaths,
+    onDragChange: setIsDragOver,
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fafbfc] flex flex-col font-sans select-none animate-in fade-in duration-150 overflow-hidden">
@@ -140,6 +159,7 @@ export const PdfOrganizeTool: React.FC<PdfOrganizeToolProps> = ({
           initialFilePath={filePath}
           initialFileName={fileName}
           initialData={fileData}
+          saveAsCopy={true}
           onSuccess={(outPath, outData, outName) => {
             onOpenDocument(outPath, outData, outName);
           }}

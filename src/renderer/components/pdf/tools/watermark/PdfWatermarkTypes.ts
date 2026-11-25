@@ -6,6 +6,7 @@ export interface WatermarkOptions {
   rotation: number;
   colorHex: string;
   imagePath?: string;
+  imageData?: Uint8Array;
   imageDataUrl?: string;
   imageFileName?: string;
   imageScale: number; // 0.1 to 1.0, e.g. 0.4

@@ -42,7 +42,7 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+  const readingTime = wordCount === 0 ? 0 : Math.max(1, Math.ceil(wordCount / 200));
 
   const scale = (zoomLevel || 100) / 100;
 
@@ -54,6 +54,10 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
     isPrintLayout,
     zoomLevel
   );
+
+  const unscaledDocHeight = isPrintLayout
+    ? totalPages * A4_PAGE_HEIGHT_PX + (totalPages - 1) * PAGE_GAP_PX
+    : pageContainerRef.current?.offsetHeight || A4_PAGE_HEIGHT_PX;
 
   useEffect(() => {
     if (editor?.view?.dom) {
@@ -158,8 +162,8 @@ export const DocsEditor: React.FC<DocsEditorProps> = ({
               transformOrigin: 'top center',
               width: isPrintLayout ? `${A4_PAGE_WIDTH_PX}px` : '100%',
               maxWidth: isPrintLayout ? `${A4_PAGE_WIDTH_PX}px` : undefined,
-              marginBottom: scale > 1
-                ? `${Math.round(((totalPages * A4_PAGE_HEIGHT_PX) + (totalPages * PAGE_GAP_PX)) * (scale - 1))}px`
+              marginBottom: scale !== 1
+                ? `${Math.round(unscaledDocHeight * (scale - 1))}px`
                 : undefined,
             }}
           >

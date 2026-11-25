@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Lock, Unlock, FileText, AlertCircle } from 'lucide-react';
 import { ActivePdfDocument } from '../PdfContainer';
 import { PdfSecurityResultView } from './PdfSecurityResultView';
 import { PdfProtectForm, PdfUnlockForm } from './PdfSecurityForms';
 import { PdfSecurityEmptyState } from './PdfSecurityEmptyState';
 import { PdfSecurityHeader } from './PdfSecurityHeader';
+import { usePdfSecurityState } from './usePdfSecurityState';
 
 interface PdfSecurityToolProps {
   onClose: () => void;
@@ -17,150 +18,23 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
   onOpenDocument,
   currentDocument,
 }) => {
-  const [tab, setTab] = useState<'protect' | 'unlock'>('protect');
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [fileData, setFileData] = useState<Uint8Array | null>(null);
-  const [fileName, setFileName] = useState<string>('');
-
-  // Protect fields
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [result, setResult] = useState<{
-    msg: string;
-    filePath: string;
-    fileName: string;
-    data?: Uint8Array;
-  } | null>(null);
-
-  const handleUseCurrentDocument = () => {
-    if (!currentDocument) return;
-    setFilePath(currentDocument.filePath);
-    setFileData(currentDocument.data);
-    setFileName(currentDocument.fileName);
-    setError(null);
-  };
-
-  const handleSelectFile = async () => {
-    try {
-      if (!window.solsticeAPI?.pdfSelectFiles || !window.solsticeAPI.pdfReadFile) return;
-      const res = await window.solsticeAPI.pdfSelectFiles({ multiple: false, title: 'Select PDF Document' });
-      if (!res.canceled && res.files.length > 0) {
-        const file = res.files[0];
-        const readRes = await window.solsticeAPI.pdfReadFile(file.filePath);
-        if (readRes.success && readRes.data) {
-          setFilePath(file.filePath);
-          setFileName(file.fileName);
-          setFileData(new Uint8Array(readRes.data));
-          setError(null);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to select file');
-    }
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        setError('Please drop a valid PDF file.');
-        return;
-      }
-      try {
-        const buffer = await file.arrayBuffer();
-        setFileData(new Uint8Array(buffer));
-        setFileName(file.name);
-        setFilePath(null);
-        setError(null);
-      } catch {
-        setError('Failed to read dropped PDF file.');
-      }
-    }
-  };
-
-  const handleProtect = async () => {
-    if (!fileData) {
-      setError('Please select a PDF document to encrypt.');
-      return;
-    }
-    if (!password || password.length < 4) {
-      setError('Please enter a password with at least 4 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      if (!window.solsticeAPI?.pdfProtect) return;
-      const res = await window.solsticeAPI.pdfProtect({
-        filePath: filePath || undefined,
-        fileData: !filePath ? Array.from(fileData) : undefined,
-        password,
-        defaultName: `Protected_${fileName || 'document.pdf'}`,
-      });
-
-      if (res.success && res.filePath) {
-        setResult({
-          msg: 'Document encrypted with AES-256 security!',
-          filePath: res.filePath,
-          fileName: res.fileName || `Protected_${fileName || 'document.pdf'}`,
-        });
-      } else if (!res.canceled && res.error) {
-        setError(res.error);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to encrypt document.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleUnlock = async () => {
-    if (!fileData) {
-      setError('Please select an encrypted PDF document to unlock.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      if (!window.solsticeAPI?.pdfUnlock) return;
-      const res = await window.solsticeAPI.pdfUnlock({
-        filePath: filePath || undefined,
-        fileData: !filePath ? Array.from(fileData) : undefined,
-        defaultName: `Unlocked_${fileName || 'document.pdf'}`,
-      });
-
-      if (res.success && res.filePath) {
-        setResult({
-          msg: 'Security restrictions removed! Document can now be opened without passwords.',
-          filePath: res.filePath,
-          fileName: res.fileName || `Unlocked_${fileName || 'document.pdf'}`,
-          data: res.data ? new Uint8Array(res.data) : undefined,
-        });
-      } else if (!res.canceled && res.error) {
-        setError(res.error);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to unlock document.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  const {
+    tab, setTab,
+    fileData, fileName,
+    password, setPassword,
+    confirmPassword, setConfirmPassword,
+    unlockPassword, setUnlockPassword,
+    showPassword, setShowPassword,
+    isProcessing, error, setError,
+    isDragOver, setIsDragOver,
+    result,
+    handleUseCurrentDocument,
+    handleSelectFile,
+    handleDrop,
+    handleProtect,
+    handleUnlock,
+    handleReset,
+  } = usePdfSecurityState(currentDocument);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fafbfc] flex flex-col font-sans select-none animate-in fade-in duration-150 overflow-hidden">
@@ -176,15 +50,10 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
           <div className="w-full max-w-md bg-white rounded-2xl border border-stone-200/90 shadow-xl p-6">
             <PdfSecurityResultView result={result} onOpenDocument={onOpenDocument} />
             <button
-              onClick={() => {
-                setResult(null);
-                setFileData(null);
-                setFileName('');
-                setFilePath(null);
-              }}
+              onClick={handleReset}
               className="mt-3 w-full py-2 rounded-xl text-xs font-medium text-slate-500 hover:bg-stone-50 transition-colors text-center cursor-pointer"
             >
-              Protect Another Document
+              {tab === 'protect' ? 'Protect Another Document' : 'Unlock Another Document'}
             </button>
           </div>
         </div>
@@ -205,7 +74,10 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
             <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-100/80 border border-stone-200/60">
               <button
                 type="button"
-                onClick={() => setTab('protect')}
+                onClick={() => {
+                  setTab('protect');
+                  setError(null);
+                }}
                 className={`py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   tab === 'protect'
                     ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/60'
@@ -217,7 +89,10 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setTab('unlock')}
+                onClick={() => {
+                  setTab('unlock');
+                  setError(null);
+                }}
                 className={`py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   tab === 'unlock'
                     ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/60'
@@ -261,6 +136,10 @@ export const PdfSecurityTool: React.FC<PdfSecurityToolProps> = ({
               <PdfUnlockForm
                 hasFile={Boolean(fileData)}
                 isProcessing={isProcessing}
+                password={unlockPassword}
+                setPassword={setUnlockPassword}
+                showPassword={showPassword}
+                setShowPassword={setShowPassword}
                 onUnlock={handleUnlock}
               />
             )}

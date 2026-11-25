@@ -41,12 +41,13 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
         {/* Main Primary Nav */}
         <nav className="space-y-space-xs">
           <button
+            type="button"
             onClick={() => {
               onSelectView('apps');
               onSelectCategory('all');
             }}
             className={cn(
-              'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs',
+              'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs cursor-pointer',
               activeView === 'apps' && currentCategory === 'all'
                 ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium shadow-sm'
                 : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -84,7 +85,7 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
             )}
           >
             <div className="flex items-center gap-space-sm">
-              <RefreshCw className={cn("h-4 w-4", activeView === 'updates' ? "text-primary" : "")} />
+              <RefreshCw className="h-4 w-4" />
               <span>Updates</span>
             </div>
             {hasUnseenUpdate && (
@@ -103,14 +104,15 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
           </div>
           <nav className="space-y-space-xs">
             <button
+              type="button"
               onClick={() => {
                 onSelectView('apps');
                 onSelectCategory('productivity');
               }}
               className={cn(
-                'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs',
+                'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs cursor-pointer',
                 activeView === 'apps' && currentCategory === 'productivity'
-                  ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium'
+                  ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium shadow-sm'
                   : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
               )}
             >
@@ -126,14 +128,15 @@ export const HubSidebar: React.FC<HubSidebarProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 onSelectView('apps');
                 onSelectCategory('media');
               }}
               className={cn(
-                'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs',
+                'w-full flex items-center justify-between px-space-sm py-space-xs rounded-xl transition-colors text-xs cursor-pointer',
                 activeView === 'apps' && currentCategory === 'media'
-                  ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium'
+                  ? 'bg-secondary-container text-on-secondary-fixed-variant font-medium shadow-sm'
                   : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
               )}
             >

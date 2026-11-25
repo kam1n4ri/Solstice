@@ -12,6 +12,8 @@ export interface DocsSavePayload {
   filePath?: string;
   title: string;
   content: string;
+  mdContent?: string;
+  txtContent?: string;
   format?: 'html' | 'md' | 'txt' | 'docx';
   isSaveAs?: boolean;
   data?: Uint8Array | number[];
@@ -30,6 +32,7 @@ export interface DocsAutoSavePayload {
   draftId?: string;
   title: string;
   content: string;
+  data?: Uint8Array | number[];
 }
 
 export interface DocsAutoSaveResult {

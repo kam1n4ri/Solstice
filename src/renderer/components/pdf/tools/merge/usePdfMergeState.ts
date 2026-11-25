@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ActivePdfDocument } from '../../PdfContainer';
 import { MergeFileItem, MergeResultData } from './PdfMergeTypes';
+import { useTauriFileDrop } from '@/lib/useTauriFileDrop';
 
 export function usePdfMergeState(currentDocument?: ActivePdfDocument | null) {
   const [files, setFiles] = useState<MergeFileItem[]>(() => {
@@ -50,19 +51,26 @@ export function usePdfMergeState(currentDocument?: ActivePdfDocument | null) {
     }
   };
 
-  const handleDropFiles = (droppedFiles: FileList) => {
+  const handleDropFiles = async (droppedFiles: FileList) => {
     const newItems: MergeFileItem[] = [];
-    const existingPaths = new Set(files.map((f) => f.filePath));
+    const existingKeys = new Set(files.map((f) => f.filePath || `${f.fileName}:${f.fileSize}`));
     for (let i = 0; i < droppedFiles.length; i++) {
       const file = droppedFiles[i];
-      const filePath = (file as unknown as { path?: string }).path || file.name;
-      if (filePath.toLowerCase().endsWith('.pdf') && !existingPaths.has(filePath)) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) continue;
+      const key = `${file.name}:${file.size}`;
+      if (existingKeys.has(key)) continue;
+      try {
+        const buffer = await file.arrayBuffer();
         newItems.push({
-          id: `${filePath}-${Date.now()}-${i}`,
-          filePath,
+          id: `${key}-${Date.now()}-${i}`,
+          filePath: '',
           fileName: file.name,
           fileSize: file.size,
+          fileData: new Uint8Array(buffer),
         });
+        existingKeys.add(key);
+      } catch {
+        // Ignore unreadable dropped entry
       }
     }
     if (newItems.length > 0) {
@@ -70,6 +78,45 @@ export function usePdfMergeState(currentDocument?: ActivePdfDocument | null) {
       setError(null);
     }
   };
+
+  const handleDropPaths = useCallback(async (paths: string[]) => {
+    const pdfPaths = paths.filter((p) => p.toLowerCase().endsWith('.pdf'));
+    if (pdfPaths.length === 0) return;
+
+    const newItems: MergeFileItem[] = [];
+    for (let i = 0; i < pdfPaths.length; i++) {
+      const fp = pdfPaths[i];
+      if (files.some((f) => f.filePath === fp)) continue;
+      let size = 0;
+      let fileData: Uint8Array | undefined;
+      if (window.solsticeAPI?.pdfReadFile) {
+        const res = await window.solsticeAPI.pdfReadFile(fp).catch(() => null);
+        if (res?.success && res.data) {
+          fileData = new Uint8Array(res.data);
+          size = res.fileSize ?? fileData.byteLength;
+        }
+      }
+      newItems.push({
+        id: `${fp}-${Date.now()}-${i}`,
+        filePath: fp,
+        fileName: fp.split(/[/\\]/).pop() || 'Document.pdf',
+        fileSize: size,
+        fileData,
+      });
+    }
+    if (newItems.length > 0) {
+      setFiles((prev) => {
+        const existing = new Set(prev.map((f) => f.filePath).filter(Boolean));
+        return [...prev, ...newItems.filter((item) => !existing.has(item.filePath))];
+      });
+      setError(null);
+    }
+  }, [files]);
+
+  useTauriFileDrop({
+    enabled: !result && !isProcessing,
+    onDropPaths: handleDropPaths,
+  });
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
@@ -123,7 +170,12 @@ export function usePdfMergeState(currentDocument?: ActivePdfDocument | null) {
         : `${outputName.trim() || 'Merged_Document'}.pdf`;
 
       const res = await window.solsticeAPI.pdfMerge({
-        filePaths: files.map((f) => f.filePath),
+        files: files.map((f) => ({
+          filePath: f.filePath || undefined,
+          fileData: f.fileData ? Array.from(f.fileData) : undefined,
+          fileName: f.fileName,
+        })),
+        filePaths: files.map((f) => f.filePath).filter(Boolean),
         defaultName: cleanName,
       });
 
